@@ -5,18 +5,26 @@ import type { Batch } from '../types';
 import { BatchCard } from '../components/BatchCard';
 import { CreateBatchModal } from '../components/CreateBatchModal';
 import { ExportModal } from '../components/ExportModal';
-import { Layers, Plus, Sparkles, Image as ImageIcon, ShieldCheck, DollarSign, RefreshCw } from 'lucide-react';
+import { Button } from '../components/common/Button';
+import { SearchField } from '../components/common/SearchField';
+import { EmptyState } from '../components/common/EmptyState';
+import {
+  Layers, Plus, Sparkles, Image as ImageIcon, ShieldCheck,
+  DollarSign, RefreshCw
+} from 'lucide-react';
 
 export const BatchesPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [exportBatch, setExportBatch] = useState<Batch | null>(null);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['batches', page],
     queryFn: () => apiClient.fetchBatches(page, 12),
-    refetchInterval: 5000, // Poll every 5s for active progress updates
+    refetchInterval: 5000,
   });
 
   const startMutation = useMutation({
@@ -39,174 +47,211 @@ export const BatchesPage: React.FC = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['batches'] }),
   });
 
-  const batches = data?.content || [];
+  const rawBatches = data?.content || [];
+
+  // Filter client-side by search and status
+  const batches = rawBatches.filter((b) => {
+    const matchesSearch = b.name.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'ALL' || b.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   // Aggregated global stats across visible batches
-  const totalImages = batches.reduce((acc, b) => acc + b.totalImages, 0);
-  const totalSafe = batches.reduce((acc, b) => acc + b.safeImages, 0);
-  const totalCost = batches.reduce((acc, b) => acc + Number(b.estimatedCostUsd || 0), 0);
+  const totalImages = rawBatches.reduce((acc, b) => acc + b.totalImages, 0);
+  const totalSafe = rawBatches.reduce((acc, b) => acc + b.safeImages, 0);
+  const totalCost = rawBatches.reduce((acc, b) => acc + Number(b.estimatedCostUsd || 0), 0);
 
   return (
-    <div className="space-y-8">
-      {/* Top Hero & Metrics Banner */}
-      <div className="relative rounded-3xl p-8 glass-panel border border-slate-800/80 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-indigo-950/30 overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-semibold text-indigo-400">
-              <Sparkles className="w-3.5 h-3.5" />
+    <div className="space-y-6">
+      {/* Top Hero & Header */}
+      <div className="p-6 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--color-primary-container)] text-[var(--color-primary-container-text)] text-xs font-semibold mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-[var(--color-primary)]" />
               <span>Commercial Stock Automation</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
-              Multimodal Image Batch Engine
-            </h1>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Process hundreds or thousands of photographic and generative images through vision analysis, stock titles, 30–45 relevant keywords, IP & trademark safety validation, and clean CSV exports.
+            <h2 className="text-2xl font-bold tracking-tight text-[var(--color-text)]">
+              Image Batch Engine
+            </h2>
+            <p className="text-sm text-[var(--color-text-muted)] max-w-2xl mt-1">
+              Process high-volume photo & generative image batches through multimodal vision analysis,
+              IP & trademark compliance audit, and marketplace-ready CSV exports.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <button
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Button
+              variant="tertiary"
               onClick={() => refetch()}
-              className="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all cursor-pointer"
-              title="Refresh Batches"
+              icon={<RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin text-[var(--color-primary)]' : ''}`} />}
+              tooltip="Refresh Batches"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin text-indigo-400' : ''}`} />
-            </button>
-            <button
+              Refresh
+            </Button>
+            <Button
+              variant="primary"
               onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm shadow-xl shadow-indigo-500/25 transition-all duration-200 active:scale-95 cursor-pointer"
+              icon={<Plus className="w-4 h-4" />}
             >
-              <Plus className="w-4 h-4" />
-              <span>Create New Batch</span>
-            </button>
+              Create New Batch
+            </Button>
           </div>
         </div>
 
         {/* Aggregate KPI Counter Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-6 border-t border-slate-800/60">
-          <div className="p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60">
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-              <Layers className="w-4 h-4 text-indigo-400" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6 pt-5 border-t border-[var(--color-border)]">
+          <div className="p-3.5 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border)]">
+            <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)]">
+              <Layers className="w-3.5 h-3.5 text-[var(--color-primary)]" />
               <span>Active Batches</span>
             </div>
-            <div className="text-2xl font-extrabold text-white mt-1 font-mono">
+            <div className="text-xl font-bold text-[var(--color-text)] mt-1 font-mono">
               {data?.totalElements || 0}
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60">
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-              <ImageIcon className="w-4 h-4 text-sky-400" />
+          <div className="p-3.5 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border)]">
+            <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)]">
+              <ImageIcon className="w-3.5 h-3.5 text-[var(--color-primary)]" />
               <span>Total Images Queued</span>
             </div>
-            <div className="text-2xl font-extrabold text-white mt-1 font-mono">
+            <div className="text-xl font-bold text-[var(--color-text)] mt-1 font-mono">
               {totalImages.toLocaleString()}
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60">
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <div className="p-3.5 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border)]">
+            <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)]">
+              <ShieldCheck className="w-3.5 h-3.5 text-[var(--color-success)]" />
               <span>Safe Stock Assets</span>
             </div>
-            <div className="text-2xl font-extrabold text-emerald-400 mt-1 font-mono">
+            <div className="text-xl font-bold text-[var(--color-success)] mt-1 font-mono">
               {totalSafe.toLocaleString()}
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/50 border border-slate-800/60">
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
+          <div className="p-3.5 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border)]">
+            <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)]">
+              <DollarSign className="w-3.5 h-3.5 text-[var(--color-success)]" />
               <span>Estimated LLM Cost</span>
             </div>
-            <div className="text-2xl font-extrabold text-emerald-300 mt-1 font-mono">
+            <div className="text-xl font-bold text-[var(--color-success)] mt-1 font-mono">
               ${totalCost.toFixed(4)}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Batches Grid Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <span>Processing Batches</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">
-              {data?.totalElements || 0}
-            </span>
-          </h2>
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Filter batches by name..."
+          className="w-full sm:w-72"
+        />
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex items-center gap-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-1 text-xs">
+            {['ALL', 'PROCESSING', 'COMPLETED', 'PAUSED', 'QUEUED'].map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  statusFilter === st
+                    ? 'bg-[var(--color-primary-container)] text-[var(--color-primary-container-text)] font-semibold'
+                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                }`}
+              >
+                {st === 'ALL' ? 'All Statuses' : st.charAt(0) + st.slice(1).toLowerCase()}
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-64 rounded-2xl bg-slate-900/50 border border-slate-800 animate-pulse" />
-            ))}
-          </div>
-        ) : batches.length === 0 ? (
-          <div className="text-center py-20 px-4 glass-panel rounded-3xl border border-slate-800/80 bg-slate-900/30 space-y-4">
-            <div className="mx-auto w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-              <Layers className="w-8 h-8" />
+      {/* Batches Grid Section */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-64 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-5 space-y-4 animate-pulse">
+              <div className="h-5 bg-[var(--color-surface-secondary)] rounded w-3/4" />
+              <div className="h-3 bg-[var(--color-surface-secondary)] rounded w-1/2" />
+              <div className="h-2 bg-[var(--color-surface-secondary)] rounded w-full" />
+              <div className="grid grid-cols-4 gap-2 pt-2">
+                {[1, 2, 3, 4].map((j) => (
+                  <div key={j} className="h-12 bg-[var(--color-surface-secondary)] rounded-lg" />
+                ))}
+              </div>
             </div>
-            <div className="space-y-1">
-              <h3 className="text-lg font-bold text-white">No batches created yet</h3>
-              <p className="text-sm text-slate-400 max-w-sm mx-auto">
-                Create your first batch and upload images to automatically generate searchable titles, descriptions, 30–45 keywords, and IP compliance checks.
-              </p>
-            </div>
-            <button
+          ))}
+        </div>
+      ) : batches.length === 0 ? (
+        <EmptyState
+          icon={<Layers className="w-6 h-6" />}
+          title={search || statusFilter !== 'ALL' ? 'No matching batches found' : 'No batches created yet'}
+          description={
+            search || statusFilter !== 'ALL'
+              ? 'Try adjusting your search query or status filter to see batches.'
+              : 'Create your first image batch to start commercial stock analysis and safety validation.'
+          }
+          action={
+            <Button
+              variant="primary"
               onClick={() => setIsCreateOpen(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+              icon={<Plus className="w-4 h-4" />}
             >
-              <Plus className="w-4 h-4" />
-              <span>Create First Batch</span>
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {batches.map((batch) => (
-              <BatchCard
-                key={batch.id}
-                batch={batch}
-                onStart={(id) => startMutation.mutate(id)}
-                onPause={(id) => pauseMutation.mutate(id)}
-                onResume={(id) => resumeMutation.mutate(id)}
-                onExport={(b) => setExportBatch(b)}
-                onDelete={(id) => {
-                  if (confirm('Are you sure you want to delete this batch and its images?')) {
-                    deleteMutation.mutate(id);
-                  }
-                }}
-              />
-            ))}
-          </div>
-        )}
+              Create New Batch
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {batches.map((batch) => (
+            <BatchCard
+              key={batch.id}
+              batch={batch}
+              onStart={(id) => startMutation.mutate(id)}
+              onPause={(id) => pauseMutation.mutate(id)}
+              onResume={(id) => resumeMutation.mutate(id)}
+              onExport={(b) => setExportBatch(b)}
+              onDelete={(id) => {
+                if (window.confirm(`Are you sure you want to delete batch "${batch.name}"?`)) {
+                  deleteMutation.mutate(id);
+                }
+              }}
+            />
+          ))}
+        </div>
+      )}
 
-        {/* Pagination */}
-        {data && data.totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-6">
-            <button
-              disabled={page === 0}
+      {/* Pagination */}
+      {data && data.totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4 border-t border-[var(--color-border)]">
+          <span className="text-xs text-[var(--color-text-muted)]">
+            Showing page {data.number + 1} of {data.totalPages} ({data.totalElements} total batches)
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={data.first}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700"
             >
               Previous
-            </button>
-            <span className="text-xs font-mono text-slate-400">
-              Page {page + 1} of {data.totalPages}
-            </span>
-            <button
-              disabled={page >= data.totalPages - 1}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={data.last}
               onClick={() => setPage((p) => p + 1)}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700"
             >
               Next
-            </button>
+            </Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Modals */}
       <CreateBatchModal
@@ -217,7 +262,7 @@ export const BatchesPage: React.FC = () => {
 
       {exportBatch && (
         <ExportModal
-          isOpen={!!exportBatch}
+          isOpen={true}
           batchId={exportBatch.id}
           batchName={exportBatch.name}
           onClose={() => setExportBatch(null)}
