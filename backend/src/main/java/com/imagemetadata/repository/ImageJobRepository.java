@@ -30,7 +30,7 @@ public interface ImageJobRepository extends JpaRepository<ImageJob, UUID> {
            "AND (:status IS NULL OR j.status = :status) " +
            "AND (:riskStatus IS NULL OR j.riskStatus = :riskStatus) " +
            "AND (:reviewDecision IS NULL OR j.reviewDecision = :reviewDecision) " +
-           "AND (:search IS NULL OR LOWER(j.originalFilename) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(j.title) LIKE LOWER(CONCAT('%', :search, '%')))")
+           "AND (:search IS NULL OR LOWER(j.originalFilename) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) OR (j.title IS NOT NULL AND LOWER(j.title) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))))")
     Page<ImageJob> searchJobs(
             @Param("batchId") UUID batchId,
             @Param("status") JobStatus status,

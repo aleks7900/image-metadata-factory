@@ -24,7 +24,7 @@ public class BatchProcessorService {
     private final ImagePipelineService pipelineService;
     private final BatchProgressEmitter progressEmitter;
 
-    private final int concurrency;
+    private volatile int concurrency;
     private ThreadPoolExecutor executor;
     private final Set<UUID> activeBatchIds = ConcurrentHashMap.newKeySet();
     private final Set<UUID> pausedBatchIds = ConcurrentHashMap.newKeySet();
@@ -77,6 +77,24 @@ public class BatchProcessorService {
                 executor.shutdownNow();
             }
         }
+    }
+
+    public synchronized void setConcurrency(int newConcurrency) {
+        if (newConcurrency > 0 && executor != null) {
+            if (newConcurrency > executor.getMaximumPoolSize()) {
+                executor.setMaximumPoolSize(newConcurrency);
+                executor.setCorePoolSize(newConcurrency);
+            } else {
+                executor.setCorePoolSize(newConcurrency);
+                executor.setMaximumPoolSize(newConcurrency);
+            }
+            this.concurrency = newConcurrency;
+            log.info("BatchProcessorService concurrency dynamically updated to: {}", newConcurrency);
+        }
+    }
+
+    public int getConcurrency() {
+        return concurrency;
     }
 
     @Transactional

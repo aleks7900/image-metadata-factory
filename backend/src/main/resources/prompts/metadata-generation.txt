@@ -16,12 +16,11 @@ Requirements:
    - Length MUST BE between 100 and 250 characters.
    - Highlights the main subject, setting/environment, visual mood, and key commercial concepts.
 3. KEYWORDS:
-   - Generate between 30 and 45 distinct keywords.
-   - Strictly sorted by commercial relevance: most important and specific concepts FIRST, broader categories towards the end.
-   - NO meaningless duplicates.
-   - NO duplicate singular/plural pairs (e.g., provide "tree", do not also include "trees").
-   - NO trademarked terms, famous person names, or brand logos.
-   - Every keyword must directly relate to the visible image or strong commercial connotations.
+   - Generate commercially useful stock keywords: strictly produce between 30 and 45 distinct keywords (target 35-40).
+   - Order keywords strictly by importance and commercial relevance: primary visible subject and action FIRST, followed by setting/environment, visual style/composition, mood, and broader commercial concepts LAST.
+   - Base keywords strictly on visible elements and genuine conceptual relevance. Do NOT accidentally introduce brands, trademarks, or IP that are absent from the image.
+   - Deduplicate keywords thoroughly: NO duplicate singular/plural pairs (e.g. choose 'tree', not both 'tree' and 'trees').
+   - NO keyword spam or irrelevant filler words.
 
 Return a strictly valid JSON object matching the following structure:
 {

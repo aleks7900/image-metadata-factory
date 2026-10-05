@@ -13,6 +13,6 @@ public interface VisionAnalysisRepository extends JpaRepository<VisionAnalysis, 
 
     Optional<VisionAnalysis> findByImageJobId(UUID imageJobId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     void deleteByImageJobId(UUID imageJobId);
 }

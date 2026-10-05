@@ -149,6 +149,24 @@ public class ImagePipelineService {
             log.info("Job {} successfully completed in {}ms. Risk={}, Title='{}'", job.getId(), job.getProcessingDurationMs(), finalRisk, job.getTitle());
 
         } catch (Exception e) {
+            boolean isRetryable = (e instanceof LlmProviderException && ((LlmProviderException) e).isRetryable())
+                    || e instanceof org.springframework.web.client.ResourceAccessException
+                    || e instanceof java.io.IOException;
+
+            if (isRetryable && job.getRetryCount() < maxRetries) {
+                job.setRetryCount(job.getRetryCount() + 1);
+                job.setErrorMessage("Retrying (" + job.getRetryCount() + "/" + maxRetries + "): " + e.getMessage());
+                job.setUpdatedAt(Instant.now());
+                imageJobRepository.save(job);
+                log.warn("Job {} failed with retryable error (attempt {}/{}): {}. Retrying in 1s...",
+                        job.getId(), job.getRetryCount(), maxRetries, e.getMessage());
+                try {
+                    Thread.sleep(1000L * job.getRetryCount());
+                } catch (InterruptedException ignored) {}
+                processJob(imageJobId);
+                return;
+            }
+
             log.error("Pipeline failure for job {}: {}", job.getId(), e.getMessage(), e);
             handleJobFailure(job, e);
         }

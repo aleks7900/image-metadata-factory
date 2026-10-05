@@ -88,7 +88,7 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
                                 "role", "user",
                                 "content", List.of(
                                         Map.of("type", "text", "text", prompt),
-                                        Map.of("type", "image_url", "image_url", Map.of("url", dataUrl, "detail", "high"))
+                                        Map.of("type", "image_url", "image_url", Map.of("url", dataUrl, "detail", "auto"))
                                 )
                         )
                 )
@@ -98,10 +98,11 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
         long duration = System.currentTimeMillis() - start;
 
         try {
-            VisionAnalysisDto vision = objectMapper.readValue(llmResponse.content, VisionAnalysisDto.class);
+            String cleanJson = sanitizeJsonContent(llmResponse.content);
+            VisionAnalysisDto vision = objectMapper.readValue(cleanJson, VisionAnalysisDto.class);
             return ImageAnalysisResult.builder()
                     .vision(vision)
-                    .rawVisionJson(llmResponse.content)
+                    .rawVisionJson(cleanJson)
                     .provider("openai")
                     .model(model)
                     .promptVersion(promptTemplateService.getPromptVersion("vision-analysis.txt"))
@@ -148,7 +149,8 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
         long duration = System.currentTimeMillis() - start;
 
         try {
-            JsonNode root = objectMapper.readTree(llmResponse.content);
+            String cleanJson = sanitizeJsonContent(llmResponse.content);
+            JsonNode root = objectMapper.readTree(cleanJson);
             String title = root.path("title").asText("");
             String description = root.path("description").asText("");
             List<String> keywords = new ArrayList<>();
@@ -196,13 +198,24 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
                 "keywords", keywords != null ? String.join(", ", keywords) : ""
         ));
 
+        // Multimodal content: attach both the compliance prompt and the actual image
+        List<Map<String, Object>> userContent = new ArrayList<>();
+        userContent.add(Map.of("type", "text", "text", renderedPrompt));
+
+        if (request.getImageBytes() != null && request.getImageBytes().length > 0) {
+            String base64Image = Base64.getEncoder().encodeToString(request.getImageBytes());
+            String mimeType = request.getMimeType() != null ? request.getMimeType() : "image/jpeg";
+            String dataUrl = "data:" + mimeType + ";base64," + base64Image;
+            userContent.add(Map.of("type", "image_url", "image_url", Map.of("url", dataUrl, "detail", "auto")));
+        }
+
         Map<String, Object> requestBody = Map.of(
                 "model", model,
                 "temperature", temperature,
                 "max_tokens", maxTokens,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(
-                        Map.of("role", "user", "content", renderedPrompt)
+                        Map.of("role", "user", "content", userContent)
                 )
         );
 
@@ -210,7 +223,8 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
         long duration = System.currentTimeMillis() - start;
 
         try {
-            JsonNode root = objectMapper.readTree(llmResponse.content);
+            String cleanJson = sanitizeJsonContent(llmResponse.content);
+            JsonNode root = objectMapper.readTree(cleanJson);
             String riskStr = root.path("riskStatus").asText("SAFE").toUpperCase();
             RiskStatus riskStatus;
             try {
@@ -297,7 +311,8 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
         long duration = System.currentTimeMillis() - start;
 
         try {
-            JsonNode root = objectMapper.readTree(llmResponse.content);
+            String cleanJson = sanitizeJsonContent(llmResponse.content);
+            JsonNode root = objectMapper.readTree(cleanJson);
             String title = root.path("title").asText(currentTitle);
             String description = root.path("description").asText(currentDescription);
             List<String> keywords = new ArrayList<>();
@@ -332,32 +347,73 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
         String endpoint = baseUrl + "/chat/completions";
 
-        try {
-            ResponseEntity<String> response = restTemplate.exchange(endpoint, HttpMethod.POST, entity, String.class);
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                throw new LlmProviderException("Non-2xx response from OpenAI: " + response.getStatusCode(), true);
+        int maxAttempts = 6;
+        long backoffMs = 1500;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                ResponseEntity<String> response = restTemplate.exchange(endpoint, HttpMethod.POST, entity, String.class);
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                    throw new LlmProviderException("Non-2xx response from OpenAI: " + response.getStatusCode(), true);
+                }
+
+                JsonNode responseJson = objectMapper.readTree(response.getBody());
+                String content = responseJson.path("choices").path(0).path("message").path("content").asText();
+                int promptTokens = responseJson.path("usage").path("prompt_tokens").asInt(0);
+                int completionTokens = responseJson.path("usage").path("completion_tokens").asInt(0);
+
+                return new LlmResponse(content, promptTokens, completionTokens);
+            } catch (HttpClientErrorException e) {
+                boolean retryable = e.getStatusCode().value() == 429;
+                if (retryable && attempt < maxAttempts) {
+                    long jitter = (long) (Math.random() * 1000);
+                    long waitTime = backoffMs + jitter;
+                    log.warn("Rate limited (429) by OpenAI, backing off for {}ms (attempt {}/{})", waitTime, attempt, maxAttempts);
+                    sleep(waitTime);
+                    backoffMs = Math.min(backoffMs * 2, 10000);
+                    continue;
+                }
+                log.error("OpenAI client error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+                throw new LlmProviderException("OpenAI API client error: " + e.getStatusCode(), e, retryable);
+            } catch (HttpServerErrorException | ResourceAccessException e) {
+                if (attempt < maxAttempts) {
+                    long jitter = (long) (Math.random() * 500);
+                    long waitTime = backoffMs + jitter;
+                    log.warn("Transient error from OpenAI ({}), backing off for {}ms (attempt {}/{})", e.getMessage(), waitTime, attempt, maxAttempts);
+                    sleep(waitTime);
+                    backoffMs = Math.min(backoffMs * 2, 10000);
+                    continue;
+                }
+                log.error("OpenAI server/timeout error: {}", e.getMessage());
+                throw new LlmProviderException("OpenAI API server error: " + e.getMessage(), e, true);
+            } catch (Exception e) {
+                log.error("Unexpected error communicating with OpenAI: {}", e.getMessage());
+                throw new LlmProviderException("Unexpected LLM error: " + e.getMessage(), e, false);
             }
-
-            JsonNode responseJson = objectMapper.readTree(response.getBody());
-            String content = responseJson.path("choices").path(0).path("message").path("content").asText();
-            int promptTokens = responseJson.path("usage").path("prompt_tokens").asInt(0);
-            int completionTokens = responseJson.path("usage").path("completion_tokens").asInt(0);
-
-            return new LlmResponse(content, promptTokens, completionTokens);
-        } catch (HttpClientErrorException e) {
-            log.error("OpenAI client error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            boolean retryable = e.getStatusCode().value() == 429;
-            throw new LlmProviderException("OpenAI API client error: " + e.getStatusCode(), e, retryable);
-        } catch (HttpServerErrorException e) {
-            log.error("OpenAI server error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new LlmProviderException("OpenAI API server error: " + e.getStatusCode(), e, true);
-        } catch (ResourceAccessException e) {
-            log.error("OpenAI connection / timeout error: {}", e.getMessage());
-            throw new LlmProviderException("OpenAI connection / timeout: " + e.getMessage(), e, true);
-        } catch (Exception e) {
-            log.error("Unexpected error communicating with OpenAI: {}", e.getMessage());
-            throw new LlmProviderException("Unexpected LLM error: " + e.getMessage(), e, false);
         }
+        throw new LlmProviderException("Exhausted retries calling OpenAI API", true);
+    }
+
+    private void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private String sanitizeJsonContent(String raw) {
+        if (raw == null) return "{}";
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("```json")) {
+            trimmed = trimmed.substring(7);
+        } else if (trimmed.startsWith("```")) {
+            trimmed = trimmed.substring(3);
+        }
+        if (trimmed.endsWith("```")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 3);
+        }
+        return trimmed.trim();
     }
 
     private BigDecimal calculateCost(int promptTokens, int completionTokens) {

@@ -67,7 +67,11 @@ public class ImageJobManagementService {
             String search,
             Pageable pageable
     ) {
-        return jobRepository.searchJobs(batchId, status, riskStatus, decision, search, pageable)
+        String cleanSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+        if (status == null && riskStatus == null && decision == null && cleanSearch == null) {
+            return jobRepository.findByBatchId(batchId, pageable).map(this::mapToResponse);
+        }
+        return jobRepository.searchJobs(batchId, status, riskStatus, decision, cleanSearch, pageable)
                 .map(this::mapToResponse);
     }
 

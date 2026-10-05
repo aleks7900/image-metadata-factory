@@ -13,6 +13,6 @@ public interface SafetyFindingRepository extends JpaRepository<SafetyFinding, Lo
 
     List<SafetyFinding> findByImageJobId(UUID imageJobId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     void deleteByImageJobId(UUID imageJobId);
 }

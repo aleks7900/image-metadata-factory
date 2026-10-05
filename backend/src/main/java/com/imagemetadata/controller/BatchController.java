@@ -152,4 +152,20 @@ public class BatchController {
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
                 .body(new InputStreamResource(csvStream));
     }
+
+    @GetMapping("/concurrency")
+    public ResponseEntity<Map<String, Object>> getConcurrency() {
+        return ResponseEntity.ok(Map.of("concurrency", batchService.getConcurrency()));
+    }
+
+    @PostMapping("/concurrency")
+    public ResponseEntity<Map<String, Object>> setConcurrency(@RequestBody Map<String, Integer> payload) {
+        Integer val = payload.get("concurrency");
+        if (val == null || val < 1 || val > 50) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Concurrency must be between 1 and 50"));
+        }
+        batchService.setConcurrency(val);
+        return ResponseEntity.ok(Map.of("concurrency", batchService.getConcurrency()));
+    }
 }
+

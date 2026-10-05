@@ -28,6 +28,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), null);
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex, HttpServletRequest request) {
+        log.warn("Malformed HTTP request payload: {}", ex.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, "Malformed JSON request body: " + ex.getMostSpecificCause().getMessage(), request.getRequestURI(), null);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex, HttpServletRequest request) {
         Map<String, String> errors = new HashMap<>();

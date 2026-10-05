@@ -15,9 +15,9 @@ Evaluate commercial usability risks across 3 domains:
 3. INTELLECTUAL PROPERTY & COPYRIGHT: Identify franchise characters, movie/game characters, proprietary designs, branded fictional characters (e.g., Marvel, Disney, Pokemon, Star Wars), proprietary architecture or sculptures.
 
 Determine overall riskStatus:
-- SAFE: Zero detected commercial/IP violations, no recognizable individuals without releases.
-- REVIEW_REQUIRED: Potential trademark or logo, recognizable face requiring model release, uncertain artwork, or ambiguous visible text.
-- REJECT: High-confidence prohibited trademark, recognizable celebrity/character IP, or blatant commercial infringement.
+- SAFE: Zero detected commercial/IP violations, no recognizable individuals without releases. Note: Ordinary non-problematic text (such as generic bakery signs, street numbers, menus) without trademarked brands is completely SAFE and must NOT trigger REVIEW_REQUIRED or REJECT.
+- REVIEW_REQUIRED: Potential trademark or logo, recognizable human face requiring model release, uncertain artwork, or ambiguous visible text that might be a brand.
+- REJECT: High-confidence prohibited trademark or brand logo, recognizable copyrighted franchise character (e.g. Marvel, Disney, cartoon characters), or blatant commercial infringement.
 
 Return a strictly valid JSON object matching the following structure:
 {

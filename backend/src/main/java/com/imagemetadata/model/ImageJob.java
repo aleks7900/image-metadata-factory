@@ -84,9 +84,6 @@ public class ImageJob {
     @Builder.Default
     private List<SafetyFinding> safetyFindings = new ArrayList<>();
 
-    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @JoinColumn(name = "id", referencedColumnName = "image_job_id")
-    private VisionAnalysis visionAnalysis;
 
     @PrePersist
     public void prePersist() {

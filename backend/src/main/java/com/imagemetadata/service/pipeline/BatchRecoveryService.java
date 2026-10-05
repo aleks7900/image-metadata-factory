@@ -34,11 +34,15 @@ public class BatchRecoveryService {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void recoverInterruptedBatches() {
         log.info("Checking for interrupted jobs and batches from prior application runs...");
+        resetInterruptedJobs();
+        resumeActiveBatches();
+        log.info("Startup batch recovery complete.");
+    }
 
-        // 1. Find jobs left in transient execution states
+    @Transactional
+    public void resetInterruptedJobs() {
         List<JobStatus> inFlightStatuses = List.of(
                 JobStatus.VISION_ANALYSIS,
                 JobStatus.METADATA_GENERATION,
@@ -53,16 +57,15 @@ public class BatchRecoveryService {
                 job.setStatus(JobStatus.UPLOADED);
                 job.setUpdatedAt(Instant.now());
             }
-            jobRepository.saveAll(interruptedJobs);
+            jobRepository.saveAllAndFlush(interruptedJobs);
         }
+    }
 
-        // 2. Find batches that were in PROCESSING state
+    public void resumeActiveBatches() {
         List<ProcessingBatch> activeBatches = batchRepository.findByStatusIn(List.of(BatchStatus.PROCESSING));
         for (ProcessingBatch batch : activeBatches) {
             log.info("Resuming interrupted batch: {} ({})", batch.getName(), batch.getId());
             batchProcessorService.startBatch(batch.getId());
         }
-
-        log.info("Startup batch recovery complete.");
     }
 }

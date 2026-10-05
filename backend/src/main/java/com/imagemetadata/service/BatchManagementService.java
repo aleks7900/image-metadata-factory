@@ -180,4 +180,13 @@ public class BatchManagementService {
                 .averageDurationMs(Math.round(avgDuration * 10.0) / 10.0)
                 .build();
     }
+
+    public int getConcurrency() {
+        return batchProcessorService.getConcurrency();
+    }
+
+    public void setConcurrency(int concurrency) {
+        batchProcessorService.setConcurrency(concurrency);
+    }
 }
+
