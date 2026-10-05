@@ -1,0 +1,21 @@
+[
+  {
+    "test": "Unsupported MIME",
+    "status": 400,
+    "passed": true,
+    "detail": "Unsupported file extension: txt. Allowed: [webp, png, jpg, jpeg]"
+  },
+  {
+    "test": "Oversized File",
+    "status": 413,
+    "passed": true,
+    "detail": "Upload exceeds maximum permitted size"
+  },
+  {
+    "test": "Mixed Batch With Corrupt Image",
+    "batchStatus": "COMPLETED",
+    "validJobStatus": "READY",
+    "corruptJobStatus": "FAILED",
+    "passed": true
+  }
+]

@@ -69,24 +69,24 @@ public class BatchManagementService {
         List<ImageJob> newJobs = new ArrayList<>();
         for (MultipartFile file : files) {
             if (file.isEmpty()) continue;
-            try {
-                StoredImage stored = storageService.store(file, batchId);
-                ImageJob job = ImageJob.builder()
-                        .batchId(batchId)
-                        .originalFilename(stored.getOriginalFilename())
-                        .storagePath(stored.getStoragePath())
-                        .mimeType(stored.getMimeType())
-                        .fileSizeBytes(stored.getSizeBytes())
-                        .status(JobStatus.UPLOADED)
-                        .riskStatus(RiskStatus.SAFE)
-                        .reviewDecision(ReviewDecision.PENDING)
-                        .createdAt(Instant.now())
-                        .updatedAt(Instant.now())
-                        .build();
-                newJobs.add(job);
-            } catch (Exception e) {
-                log.error("Failed to store file {}: {}", file.getOriginalFilename(), e.getMessage());
-            }
+            StoredImage stored = storageService.store(file, batchId);
+            ImageJob job = ImageJob.builder()
+                    .batchId(batchId)
+                    .originalFilename(stored.getOriginalFilename())
+                    .storagePath(stored.getStoragePath())
+                    .mimeType(stored.getMimeType())
+                    .fileSizeBytes(stored.getSizeBytes())
+                    .status(JobStatus.UPLOADED)
+                    .riskStatus(RiskStatus.SAFE)
+                    .reviewDecision(ReviewDecision.PENDING)
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .build();
+            newJobs.add(job);
+        }
+
+        if (newJobs.isEmpty()) {
+            throw new IllegalArgumentException("No valid files provided for upload");
         }
 
         jobRepository.saveAll(newJobs);

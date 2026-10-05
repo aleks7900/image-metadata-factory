@@ -1,0 +1,56 @@
+[
+  {
+    "concurrency": 1,
+    "totalImages": 50,
+    "readyJobs": 50,
+    "failedJobs": 0,
+    "retryCount": 0,
+    "totalDurationSec": 35.19,
+    "imagesPerSecond": 1.42,
+    "avgJobDurationMs": 659.2,
+    "batchCounters": {
+      "total": 50,
+      "processed": 50,
+      "failed": 0,
+      "safe": 45,
+      "reviewRequired": 5,
+      "rejected": 0
+    }
+  },
+  {
+    "concurrency": 5,
+    "totalImages": 50,
+    "readyJobs": 50,
+    "failedJobs": 0,
+    "retryCount": 0,
+    "totalDurationSec": 7.09,
+    "imagesPerSecond": 7.05,
+    "avgJobDurationMs": 655.4,
+    "batchCounters": {
+      "total": 50,
+      "processed": 50,
+      "failed": 0,
+      "safe": 45,
+      "reviewRequired": 5,
+      "rejected": 0
+    }
+  },
+  {
+    "concurrency": 10,
+    "totalImages": 50,
+    "readyJobs": 50,
+    "failedJobs": 0,
+    "retryCount": 0,
+    "totalDurationSec": 3.76,
+    "imagesPerSecond": 13.28,
+    "avgJobDurationMs": 655.5,
+    "batchCounters": {
+      "total": 50,
+      "processed": 50,
+      "failed": 0,
+      "safe": 45,
+      "reviewRequired": 5,
+      "rejected": 0
+    }
+  }
+]

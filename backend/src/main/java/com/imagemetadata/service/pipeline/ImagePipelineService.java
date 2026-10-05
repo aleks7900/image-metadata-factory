@@ -82,6 +82,12 @@ public class ImagePipelineService {
             // 1. Stage: VISION_ANALYSIS
             updateJobStatus(job, JobStatus.VISION_ANALYSIS, null);
             byte[] imageBytes = storageService.loadBytes(job.getStoragePath());
+            if (imageBytes == null || imageBytes.length < 12) {
+                throw new IllegalArgumentException("Corrupt image file: insufficient byte length (" + (imageBytes != null ? imageBytes.length : 0) + " bytes)");
+            }
+            if (!isValidImageHeader(imageBytes)) {
+                throw new IllegalArgumentException("Corrupt or invalid image file: signature does not match supported image formats (JPEG, PNG, WebP)");
+            }
 
             ImageAnalysisRequest request = ImageAnalysisRequest.builder()
                     .batchId(job.getBatchId())
@@ -318,4 +324,21 @@ public class ImagePipelineService {
         }
         return RiskStatus.SAFE;
     }
+
+    private boolean isValidImageHeader(byte[] bytes) {
+        if (bytes == null || bytes.length < 12) return false;
+
+        // JPEG: FF D8 FF
+        boolean isJpeg = (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF;
+
+        // PNG: 89 50 4E 47
+        boolean isPng = (bytes[0] & 0xFF) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47;
+
+        // WEBP: 'R' 'I' 'F' 'F' ... 'W' 'E' 'B' 'P'
+        boolean isWebp = bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
+
+        return isJpeg || isPng || isWebp;
+    }
 }
+

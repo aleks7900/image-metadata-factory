@@ -66,7 +66,7 @@ async function getBatch(batchId) {
 }
 
 async function getJobs(batchId) {
-    const res = await fetch(`${BASE_URL}/batches/${batchId}/jobs?size=100`);
+    const res = await fetch(`${BASE_URL}/batches/${batchId}/images?size=100`);
     return res.json();
 }
 
