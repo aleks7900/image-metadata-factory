@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false
+
+app:
+  storage:
+    type: local
+    local:
+      base-dir: ./target/test-storage
+  processing:
+    concurrency: 2
+    max-retries: 2
+    initial-backoff-ms: 50
+    backoff-multiplier: 1.5
+  llm:
+    provider: mock
+    mock:
+      latency-ms: 10

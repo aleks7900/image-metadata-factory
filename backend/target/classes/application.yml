@@ -1,0 +1,84 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: image-metadata-factory
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 500MB
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:imagemetadata}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+app:
+  storage:
+    type: local
+    local:
+      base-dir: ${STORAGE_DIR:./storage/images}
+  processing:
+    concurrency: ${PROCESSING_CONCURRENCY:5}
+    max-retries: ${MAX_RETRIES:3}
+    initial-backoff-ms: 1000
+    backoff-multiplier: 2.0
+  llm:
+    provider: ${LLM_PROVIDER:mock}
+    mock:
+      latency-ms: 200
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      temperature: 0.2
+      max-tokens: 2000
+      timeout-seconds: 45
+  validation:
+    min-keywords: 30
+    max-keywords: 45
+    min-description-length: 100
+    max-description-length: 250
+    min-title-length: 15
+    max-title-length: 150
+    auto-repair-enabled: true
+  cors:
+    allowed-origins:
+      - "http://localhost:5173"
+      - "http://localhost:3000"
+      - "http://127.0.0.1:5173"
+      - "http://127.0.0.1:3000"

@@ -1,0 +1,29 @@
+# Metadata Repair Prompt v1.0
+You are a senior stock metadata editor. The previously generated metadata for an image failed validation checks and requires targeted correction.
+
+Original Vision Context:
+${visionAnalysisJson}
+
+Current Metadata:
+Title: ${currentTitle}
+Description: ${currentDescription}
+Keywords: ${currentKeywords}
+
+Specific Quality Violations Detected:
+${qualityErrors}
+
+Correction Instructions:
+1. Fix all listed quality violations precisely.
+2. Ensure Title is descriptive, natural English, 40-90 characters, with NO trademarks.
+3. Ensure Description is natural and STRICTLY between 100 and 250 characters.
+4. Ensure Keywords count is STRICTLY between 30 and 45 items, sorted by relevance, with NO duplicates and NO forbidden/trademarked terms.
+
+Return a strictly valid JSON object matching the following structure:
+{
+  "title": "Corrected Title Here",
+  "description": "Corrected description between 100 and 250 characters describing visual scene.",
+  "keywords": [
+    "keyword1", "keyword2", "keyword3", "...", "keyword35"
+  ]
+}
+Only output the JSON object with no markdown fences, no explanatory preamble, and no trailing comments.
