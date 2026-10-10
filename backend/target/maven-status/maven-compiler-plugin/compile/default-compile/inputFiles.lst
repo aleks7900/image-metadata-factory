@@ -1,13 +1,18 @@
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\config\SecurityConfig.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\controller\BatchController.java
+E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\controller\CategoryController.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\controller\ImageJobController.java
+E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\AdobeStockCategoryDto.java
+E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\BatchCategoryAuditResponse.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\BatchProgressEvent.java
+E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\BatchReclassifyResponse.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\BatchResponse.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\BulkReviewRequest.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\CostEstimateResponse.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\CreateBatchRequest.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\CsvValidationResult.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\ImageJobResponse.java
+E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\ReclassifyBatchCategoriesRequest.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\ReviewActionRequest.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\SafetyFindingDto.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\dto\UpdateMetadataRequest.java
@@ -54,5 +59,6 @@ E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\servi
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\service\storage\ImageStorageService.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\service\storage\LocalImageStorageService.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\service\storage\StoredImage.java
+E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\service\validation\CategoryValidationService.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\service\validation\DeterministicSafetyValidator.java
 E:\Projects\image-metadata-factory\backend\src\main\java\com\imagemetadata\service\validation\MetadataQualityValidator.java

@@ -139,6 +139,22 @@ public class BatchController {
         ));
     }
 
+    @PostMapping("/{id}/categories/audit")
+    public ResponseEntity<BatchCategoryAuditResponse> auditBatchCategories(@PathVariable UUID id) {
+        return ResponseEntity.ok(batchService.auditBatchCategories(id));
+    }
+
+    @PostMapping("/{id}/categories/reclassify")
+    public ResponseEntity<BatchReclassifyResponse> reclassifyBatchCategories(
+            @PathVariable UUID id,
+            @RequestBody(required = false) ReclassifyBatchCategoriesRequest request
+    ) {
+        return ResponseEntity.ok(batchService.reclassifyBatchCategories(
+                id,
+                request != null ? request : ReclassifyBatchCategoriesRequest.builder().build()
+        ));
+    }
+
     @GetMapping("/{id}/events")
     public SseEmitter streamBatchEvents(@PathVariable UUID id) {
         return progressEmitter.registerEmitter(id);

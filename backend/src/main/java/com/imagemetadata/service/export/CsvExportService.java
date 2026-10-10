@@ -280,6 +280,8 @@ public class CsvExportService {
         if (job.getCategory() != null && job.getCategory() >= 1 && job.getCategory() <= 21) {
             return job.getCategory();
         }
+        log.warn("Job {} has null or invalid category ({}); inferring official Adobe Stock category for CSV export",
+                job.getId(), job.getCategory());
         AdobeStockCategory inferred = AdobeStockCategory.inferCategory(
                 job.getTitle(),
                 job.getDescription(),

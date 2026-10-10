@@ -94,6 +94,9 @@ public class ImageJobManagementService {
             job.setCategory(request.getCategory());
             AdobeStockCategory cat = AdobeStockCategory.fromId(request.getCategory());
             job.setCategoryName(cat != null ? cat.getName() : "Custom");
+            job.setCategoryConfidence(1.0);
+            job.setCategoryReason("Manually assigned by user");
+            job.setCategoryManuallyEdited(true);
         }
         if (request.getReleases() != null) {
             job.setReleases(request.getReleases().trim());
@@ -192,6 +195,10 @@ public class ImageJobManagementService {
                 .rawVisionAnalysisJson(rawVision)
                 .category(job.getCategory())
                 .categoryName(job.getCategoryName())
+                .categoryConfidence(job.getCategoryConfidence())
+                .categoryReason(job.getCategoryReason())
+                .categorySuggested(job.getCategorySuggested())
+                .categoryManuallyEdited(job.isCategoryManuallyEdited())
                 .releases(job.getReleases())
                 .isAiGenerated(job.isAiGenerated())
                 .imageWidth(job.getImageWidth())

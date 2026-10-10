@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import type { ImageJob, RiskStatus, ReviewDecision } from '../types';
+import type { ImageJob, RiskStatus, ReviewDecision, BatchCategoryAuditResponse } from '../types';
 import { useBatchSse } from '../hooks/useBatchSse';
 import { JobStatusBadge, RiskBadge, ReviewDecisionBadge, BatchStatusBadge } from '../components/StatusBadges';
 import { ImageCard } from '../components/ImageCard';
@@ -12,9 +12,11 @@ import { Button } from '../components/common/Button';
 import { SearchField } from '../components/common/SearchField';
 import { EmptyState } from '../components/common/EmptyState';
 import { LoadingSkeleton } from '../components/common/LoadingSkeleton';
+import { getCategoryLabel } from '../constants/adobeStockCategories';
 import {
   ArrowLeft, Play, Pause, Download, RefreshCw, Upload,
-  LayoutGrid, Table as TableIcon, Eye, Radio, Image as ImageIcon, CheckCheck, AlertTriangle, Ban
+  LayoutGrid, Table as TableIcon, Eye, Radio, Image as ImageIcon, CheckCheck, AlertTriangle, Ban,
+  SlidersHorizontal, CheckCircle
 } from 'lucide-react';
 
 export const BatchDetailsPage: React.FC = () => {
@@ -34,6 +36,8 @@ export const BatchDetailsPage: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<ImageJob | null>(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [uploadingMore, setUploadingMore] = useState(false);
+  const [auditResult, setAuditResult] = useState<BatchCategoryAuditResponse | null>(null);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
 
   // Fetch Batch Details
   const { data: batch, isLoading: batchLoading } = useQuery({
@@ -111,6 +115,25 @@ export const BatchDetailsPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
       queryClient.invalidateQueries({ queryKey: ['batch-images', batchId] });
+    },
+  });
+
+  const auditCategoriesMutation = useMutation({
+    mutationFn: () => apiClient.auditBatchCategories(batchId!),
+    onSuccess: (data) => {
+      setAuditResult(data);
+      setIsAuditModalOpen(true);
+    },
+  });
+
+  const reclassifyCategoriesMutation = useMutation({
+    mutationFn: () => apiClient.reclassifyBatchCategories(batchId!, { onlySuspicious: true, includeApproved: false }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
+      queryClient.invalidateQueries({ queryKey: ['batch-images', batchId] });
+      alert(`Reclassified ${data.reclassifiedCount} assets (${data.skippedManuallyEditedCount} manual edits preserved).`);
+      setIsAuditModalOpen(false);
+      setAuditResult(null);
     },
   });
 
@@ -292,6 +315,17 @@ export const BatchDetailsPage: React.FC = () => {
               className="hidden"
               onChange={handleUploadMore}
             />
+
+            {batch.totalImages > 0 && (
+              <Button
+                variant="secondary"
+                onClick={() => auditCategoriesMutation.mutate()}
+                loading={auditCategoriesMutation.isPending}
+                icon={<SlidersHorizontal className="w-4 h-4" />}
+              >
+                Audit Categories
+              </Button>
+            )}
 
             <Button
               variant="primary"
@@ -497,7 +531,7 @@ export const BatchDetailsPage: React.FC = () => {
                     <div className="text-[var(--color-text-muted)] truncate">{img.title || 'No title generated'}</div>
                   </td>
                   <td className="px-4 py-2.5 text-[var(--color-text-muted)] font-medium whitespace-nowrap">
-                    {img.category ? `${img.category} (${img.categoryName || 'General'})` : '—'}
+                    {getCategoryLabel(img.category, img.categoryName)}
                   </td>
                   <td className="px-4 py-2.5">
                     <JobStatusBadge status={img.status} />
@@ -578,6 +612,118 @@ export const BatchDetailsPage: React.FC = () => {
         batchName={batch.name}
         onClose={() => setIsExportOpen(false)}
       />
+
+      {/* Category Audit Modal */}
+      {isAuditModalOpen && auditResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-5 h-5 text-[var(--color-primary)]" />
+                <h3 className="text-base font-semibold text-[var(--color-text)]">
+                  Adobe Stock Category Audit
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAuditModalOpen(false)}
+                className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border-subtle)] text-center">
+                  <div className="text-xs text-[var(--color-text-muted)]">Total Audited</div>
+                  <div className="text-xl font-bold font-mono text-[var(--color-text)]">{auditResult.totalImages}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border-subtle)] text-center">
+                  <div className="text-xs text-[var(--color-text-muted)]">Verified Valid</div>
+                  <div className="text-xl font-bold font-mono text-[var(--color-success)]">{auditResult.validCount}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border-subtle)] text-center">
+                  <div className="text-xs text-[var(--color-text-muted)]">Suspicious / Conflicting</div>
+                  <div className="text-xl font-bold font-mono text-[var(--color-warning)]">{auditResult.suspiciousCount}</div>
+                </div>
+              </div>
+
+              {auditResult.suspiciousCount === 0 ? (
+                <div className="p-4 rounded-xl bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-[var(--color-success)] shrink-0" />
+                  <p className="text-xs text-[var(--color-text)]">
+                    All Adobe Stock categories in this batch are strictly valid, consistent with visual content, and compliant with official specifications.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                      Flagged Classifications ({auditResult.suspiciousItems.length})
+                    </span>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">
+                      Manual edits preserved ({auditResult.manuallyEditedCount})
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {auditResult.suspiciousItems.map((item) => (
+                      <div
+                        key={item.imageJobId}
+                        className="p-3 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-xs space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-medium text-[var(--color-text)] truncate max-w-xs">
+                            {item.originalFilename}
+                          </span>
+                          <span className="text-[11px] font-mono text-[var(--color-warning)] font-semibold">
+                            Current: {item.currentCategory ?? 'None'} ({item.currentCategoryName || 'Unknown'})
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-[var(--color-primary)] font-medium">
+                            Suggested: {item.suggestedCategory} - {item.suggestedCategoryName}
+                          </span>
+                          <span className="text-[var(--color-text-muted)]">
+                            Confidence: {Math.round(item.confidence * 100)}%
+                          </span>
+                        </div>
+                        {item.contradictionDetails && (
+                          <p className="text-[11px] text-[var(--color-error)]">
+                            ⚠️ {item.contradictionDetails}
+                          </p>
+                        )}
+                        {item.reason && (
+                          <p className="text-[11px] text-[var(--color-text-muted)] italic">
+                            Reason: {item.reason}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-[var(--color-border)] flex items-center justify-end gap-2 bg-[var(--color-surface-secondary)]/30">
+              <Button variant="secondary" onClick={() => setIsAuditModalOpen(false)}>
+                Close
+              </Button>
+              {auditResult.suspiciousCount > 0 && (
+                <Button
+                  variant="primary"
+                  loading={reclassifyCategoriesMutation.isPending}
+                  onClick={() => reclassifyCategoriesMutation.mutate()}
+                  icon={<RefreshCw className="w-4 h-4" />}
+                >
+                  Reclassify Suspicious Assets ({auditResult.suspiciousCount})
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

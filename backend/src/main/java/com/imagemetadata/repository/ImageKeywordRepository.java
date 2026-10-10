@@ -13,6 +13,12 @@ public interface ImageKeywordRepository extends JpaRepository<ImageKeyword, Long
 
     List<ImageKeyword> findByImageJobIdOrderByPositionAsc(UUID imageJobId);
 
+    default List<String> findKeywordsByImageJobId(UUID imageJobId) {
+        return findByImageJobIdOrderByPositionAsc(imageJobId).stream()
+                .map(ImageKeyword::getKeyword)
+                .toList();
+    }
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     void deleteByImageJobId(UUID imageJobId);
 }

@@ -79,6 +79,19 @@ public class ImageJob {
     @Column(name = "category_name", length = 100)
     private String categoryName;
 
+    @Column(name = "category_confidence")
+    private Double categoryConfidence;
+
+    @Column(name = "category_reason", length = 1000)
+    private String categoryReason;
+
+    @Column(name = "category_suggested")
+    private Integer categorySuggested;
+
+    @Column(name = "category_manually_edited", nullable = false)
+    @Builder.Default
+    private boolean categoryManuallyEdited = false;
+
     @Column(name = "releases", length = 500)
     private String releases;
 

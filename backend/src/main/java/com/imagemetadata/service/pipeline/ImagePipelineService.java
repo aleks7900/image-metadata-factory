@@ -9,6 +9,7 @@ import com.imagemetadata.repository.*;
 import com.imagemetadata.service.llm.*;
 import com.imagemetadata.service.storage.ImageOptimizationService;
 import com.imagemetadata.service.storage.ImageStorageService;
+import com.imagemetadata.service.validation.CategoryValidationService;
 import com.imagemetadata.service.validation.DeterministicSafetyValidator;
 import com.imagemetadata.service.validation.MetadataQualityValidator;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class ImagePipelineService {
     private final MetadataQualityValidator metadataQualityValidator;
     private final ObjectMapper objectMapper;
     private final ImageOptimizationService imageOptimizationService;
+    private final CategoryValidationService categoryValidationService;
     private final int maxRetries;
     private final boolean autoRepairEnabled;
 
@@ -49,6 +51,7 @@ public class ImagePipelineService {
             MetadataQualityValidator metadataQualityValidator,
             ObjectMapper objectMapper,
             ImageOptimizationService imageOptimizationService,
+            CategoryValidationService categoryValidationService,
             @Value("${app.processing.max-retries:3}") int maxRetries,
             @Value("${app.validation.auto-repair-enabled:true}") boolean autoRepairEnabled
     ) {
@@ -63,6 +66,7 @@ public class ImagePipelineService {
         this.metadataQualityValidator = metadataQualityValidator;
         this.objectMapper = objectMapper;
         this.imageOptimizationService = imageOptimizationService;
+        this.categoryValidationService = categoryValidationService;
         this.maxRetries = maxRetries;
         this.autoRepairEnabled = autoRepairEnabled;
     }
@@ -119,6 +123,39 @@ public class ImagePipelineService {
             String candidateDescription = metadataResult.getDescription();
             List<String> candidateKeywords = metadataResult.getKeywords();
 
+            Integer candidateCategoryId = metadataResult.getCategory();
+            String candidateCategoryName = metadataResult.getCategoryName();
+            Double candidateConfidence = metadataResult.getCategoryConfidence();
+            String candidateReason = metadataResult.getCategoryReason();
+
+            log.info("Job {} metadata generation produced category: id={}, name={}, confidence={}, reason='{}'",
+                    job.getId(), candidateCategoryId, candidateCategoryName, candidateConfidence, candidateReason);
+
+            // Validate and resolve category through CategoryValidationService
+            CategoryValidationService.CategoryValidationResult catValidation = categoryValidationService.validateAndResolve(
+                    candidateCategoryId,
+                    candidateCategoryName,
+                    candidateConfidence,
+                    candidateReason,
+                    visionResult.getVision(),
+                    candidateTitle,
+                    candidateKeywords
+            );
+
+            log.info("Job {} category validated: resolvedId={}, resolvedName={}, confidence={}, contradictionDetected={}, reviewRequired={}",
+                    job.getId(), catValidation.resolvedCategoryId(), catValidation.resolvedCategoryName(),
+                    catValidation.confidence(), catValidation.isContradictionDetected(), catValidation.isReviewRequired());
+
+            if (!job.isCategoryManuallyEdited()) {
+                job.setCategory(catValidation.resolvedCategoryId());
+                job.setCategoryName(catValidation.resolvedCategoryName());
+                job.setCategoryConfidence(catValidation.confidence());
+                job.setCategoryReason(catValidation.reason());
+                if (catValidation.originalCategoryId() != null && catValidation.originalCategoryId() != catValidation.resolvedCategoryId()) {
+                    job.setCategorySuggested(catValidation.originalCategoryId());
+                }
+            }
+
             // 3. Stage: SAFETY_VALIDATION
             updateJobStatus(job, JobStatus.SAFETY_VALIDATION, null);
             ImageAnalysisResult safetyResult = provider.validateSafety(visionResult.getVision(), candidateTitle, candidateDescription, candidateKeywords, request);
@@ -131,6 +168,19 @@ public class ImagePipelineService {
             RiskStatus finalRisk = resolveRisk(safetyResult.getRiskStatus(), deterministicResult.riskStatus());
             List<SafetyFindingDto> combinedFindings = new ArrayList<>(safetyResult.getSafetyFindings());
             combinedFindings.addAll(deterministicResult.findings());
+
+            // If category contradiction was detected, flag for review and add finding
+            if (catValidation.isContradictionDetected()) {
+                combinedFindings.add(SafetyFindingDto.builder()
+                        .type(SafetyFindingType.QUALITY)
+                        .value("Category Contradiction")
+                        .confidence(0.95)
+                        .reason(catValidation.contradictionDetails())
+                        .build());
+            }
+            if (catValidation.isReviewRequired()) {
+                finalRisk = resolveRisk(finalRisk, RiskStatus.REVIEW_REQUIRED);
+            }
 
             // Add resolution finding if below Adobe Stock recommendation
             if (imageInfo.getWidth() > 0 && !imageInfo.isMeetsAdobeStockResolution()) {
@@ -223,6 +273,13 @@ public class ImagePipelineService {
         job.setErrorMessage(null);
         job.setTitle(null);
         job.setDescription(null);
+        if (!job.isCategoryManuallyEdited()) {
+            job.setCategory(null);
+            job.setCategoryName(null);
+            job.setCategoryConfidence(null);
+            job.setCategoryReason(null);
+            job.setCategorySuggested(null);
+        }
         job.setRiskStatus(RiskStatus.SAFE);
         job.setReviewDecision(ReviewDecision.PENDING);
         job.setUpdatedAt(Instant.now());
@@ -256,16 +313,21 @@ public class ImagePipelineService {
         job.setProcessingDurationMs(durationMs);
         job.setUpdatedAt(Instant.now());
 
-        // Infer Adobe Stock category if not manually provided
+        // Infer/Validate Adobe Stock category if not manually provided
         if (job.getCategory() == null) {
-            AdobeStockCategory category = AdobeStockCategory.inferCategory(
+            CategoryValidationService.CategoryValidationResult fallbackValidation = categoryValidationService.validateAndResolve(
+                    null,
+                    null,
+                    null,
+                    null,
+                    visionDto,
                     qualityResult.sanitizedTitle(),
-                    visionDto != null ? visionDto.getEnvironment() : null,
-                    visionDto != null ? visionDto.getSubjects() : null,
                     qualityResult.sanitizedKeywords()
             );
-            job.setCategory(category.getId());
-            job.setCategoryName(category.getName());
+            job.setCategory(fallbackValidation.resolvedCategoryId());
+            job.setCategoryName(fallbackValidation.resolvedCategoryName());
+            job.setCategoryConfidence(fallbackValidation.confidence());
+            job.setCategoryReason(fallbackValidation.reason());
         }
 
         // Compute compliance status

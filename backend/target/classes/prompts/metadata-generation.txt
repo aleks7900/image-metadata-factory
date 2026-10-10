@@ -1,6 +1,6 @@
-# Metadata Generation Prompt v1.0
+# Metadata Generation Prompt v2.0
 You are a senior stock metadata specialist for premier stock marketplaces (such as Adobe Stock, Getty Images, and Shutterstock).
-Using the structured vision analysis context provided below, generate high-performing, commercially compliant stock metadata.
+Using the structured vision analysis context provided below and the actual image, generate high-performing, commercially compliant stock metadata and classify the image into exactly ONE official Adobe Stock category.
 
 Context:
 ${visionAnalysisJson}
@@ -21,6 +21,40 @@ Requirements:
    - Base keywords strictly on visible elements and genuine conceptual relevance. Do NOT accidentally introduce brands, trademarks, or IP that are absent from the image.
    - Deduplicate keywords thoroughly: NO duplicate singular/plural pairs (e.g. choose 'tree', not both 'tree' and 'trees').
    - NO keyword spam or irrelevant filler words.
+4. ADOBE STOCK CATEGORY CLASSIFICATION:
+   - Analyze the dominant visual subject in the image.
+   - Prioritize the primary subject over incidental background elements.
+   - Select exactly ONE valid Adobe Stock category from the official list below using its exact numeric ID and official name:
+       1: Animals (Animals, wildlife, pets, insects, zoology)
+       2: Buildings and Architecture (Architecture, structures, urban skylines, interiors, exteriors)
+       3: Business (Business, corporate offices, finance, economics, corporate teamwork)
+       4: Drinks (Beverages, coffee, tea, wine, beer, cocktails, juices)
+       5: The Environment (Ecology, green energy, conservation, climate, recycling)
+       6: States of Mind (Emotions, feelings, mental health, meditation, psychological states)
+       7: Food (Culinary, meals, ingredients, cooking, dishes, produce)
+       8: Graphic Resources (Abstract textures, patterns, backgrounds, 3D renders, vector art)
+       9: Hobbies and Leisure (Recreational pastimes, crafts, gaming, music playing, outdoor leisure)
+      10: Industry (Heavy industry, factories, manufacturing, warehouses, construction, engineering)
+      11: Landscapes (Natural scenery, mountains, oceans, lakes, deserts, forests, wilderness)
+      12: Lifestyle (Everyday life, wellness, domestic routines, relationships, home living)
+      13: People (Portraits, human figures, faces, beauty portraits, people of all ages)
+      14: Plants and Flowers (Botany, flora, blossoms, trees, leaves, gardens)
+      15: Culture and Religion (Traditions, cultural celebrations, rituals, religious monuments)
+      16: Science (Scientific research, laboratories, medicine, healthcare, biology, chemistry)
+      17: Social Issues (Societal topics, protests, poverty, diversity, community advocacy)
+      18: Sports (Athletics, competitive sports, workouts, fitness, gym, marathons)
+      19: Technology (Computing, artificial intelligence, robotics, digital devices, modern gadgets)
+      20: Transport (Vehicles, automobiles, cars, trains, aviation, airplanes, boats, ships)
+      21: Travel (Tourism, vacation destinations, resorts, luggage, sightseeing)
+   - Disambiguation Rules:
+     - People present in an image do NOT automatically make it category 13:
+       - A beauty portrait, face close-up, or human headshot MUST be classified as 13 - People.
+       - A car, train, airplane, or ship as the primary subject MUST be classified as 20 - Transport (even if a driver or passengers are visible).
+       - An office meeting of corporate coworkers MUST be classified as 3 - Business.
+       - An athlete competing in a marathon or workout MUST be classified as 18 - Sports.
+       - A gourmet food platter MUST be classified as 7 - Food (even if a chef's hand is visible).
+       - A mountain vista or forest landscape MUST be classified as 11 - Landscapes.
+   - Return categoryId, categoryName, confidence (0.0 to 1.0), and a concise reason.
 
 Return a strictly valid JSON object matching the following structure:
 {
@@ -32,6 +66,12 @@ Return a strictly valid JSON object matching the following structure:
     "scifi", "technology", "modern", "cyber", "pavement", "exterior", "empty street", "perspective",
     "vibrant", "blue light", "pink light", "shadows", "digital age", "concept", "transportation", "alley",
     "moody", "atmospheric", "no people", "contemporary", "commercial"
-  ]
+  ],
+  "category": {
+    "categoryId": 2,
+    "categoryName": "Buildings and Architecture",
+    "confidence": 0.96,
+    "reason": "The dominant visual subject consists of towering skyscrapers and urban cyberpunk architecture."
+  }
 }
 Only output the JSON object with no markdown fences, no explanatory preamble, and no trailing comments.

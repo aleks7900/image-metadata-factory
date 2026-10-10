@@ -36,6 +36,8 @@ public class ImageAnalysisResult {
     private boolean modelReleaseMayBeRequired;
     private Integer category;
     private String categoryName;
+    private Double categoryConfidence;
+    private String categoryReason;
     private boolean isAiGenerated;
     private String provider;
     private String model;

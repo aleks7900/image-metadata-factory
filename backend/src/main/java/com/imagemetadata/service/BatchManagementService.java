@@ -4,12 +4,16 @@ import com.imagemetadata.dto.*;
 import com.imagemetadata.exception.ResourceNotFoundException;
 import com.imagemetadata.exception.StorageException;
 import com.imagemetadata.model.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemetadata.repository.ImageJobRepository;
+import com.imagemetadata.repository.ImageKeywordRepository;
 import com.imagemetadata.repository.LlmUsageLogRepository;
 import com.imagemetadata.repository.ProcessingBatchRepository;
+import com.imagemetadata.repository.VisionAnalysisRepository;
 import com.imagemetadata.service.pipeline.BatchProcessorService;
 import com.imagemetadata.service.storage.ImageStorageService;
 import com.imagemetadata.service.storage.StoredImage;
+import com.imagemetadata.service.validation.CategoryValidationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,22 +38,34 @@ public class BatchManagementService {
 
     private final ProcessingBatchRepository batchRepository;
     private final ImageJobRepository jobRepository;
+    private final ImageKeywordRepository keywordRepository;
+    private final VisionAnalysisRepository visionAnalysisRepository;
     private final LlmUsageLogRepository usageLogRepository;
     private final ImageStorageService storageService;
     private final BatchProcessorService batchProcessorService;
+    private final CategoryValidationService categoryValidationService;
+    private final ObjectMapper objectMapper;
 
     public BatchManagementService(
             ProcessingBatchRepository batchRepository,
             ImageJobRepository jobRepository,
+            ImageKeywordRepository keywordRepository,
+            VisionAnalysisRepository visionAnalysisRepository,
             LlmUsageLogRepository usageLogRepository,
             ImageStorageService storageService,
-            BatchProcessorService batchProcessorService
+            BatchProcessorService batchProcessorService,
+            CategoryValidationService categoryValidationService,
+            ObjectMapper objectMapper
     ) {
         this.batchRepository = batchRepository;
         this.jobRepository = jobRepository;
+        this.keywordRepository = keywordRepository;
+        this.visionAnalysisRepository = visionAnalysisRepository;
         this.usageLogRepository = usageLogRepository;
         this.storageService = storageService;
         this.batchProcessorService = batchProcessorService;
+        this.categoryValidationService = categoryValidationService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -368,6 +384,182 @@ public class BatchManagementService {
                 .totalOutputTokens(outTokens)
                 .estimatedCostUsd(cost)
                 .averageDurationMs(Math.round(avgDuration * 10.0) / 10.0)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public BatchCategoryAuditResponse auditBatchCategories(UUID batchId) {
+        ProcessingBatch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch not found: " + batchId));
+
+        List<ImageJob> jobs = jobRepository.findByBatchId(batchId);
+        int total = jobs.size();
+        int validCount = 0;
+        int suspiciousCount = 0;
+        int manualCount = 0;
+
+        List<BatchCategoryAuditResponse.SuspiciousCategoryItem> suspiciousItems = new ArrayList<>();
+
+        for (ImageJob job : jobs) {
+            if (job.isCategoryManuallyEdited()) {
+                manualCount++;
+            }
+
+            List<String> keywords = keywordRepository.findKeywordsByImageJobId(job.getId());
+            VisionAnalysisDto vision = null;
+            var vaOpt = visionAnalysisRepository.findByImageJobId(job.getId());
+            if (vaOpt.isPresent()) {
+                try {
+                    vision = objectMapper.readValue(vaOpt.get().getAnalysisJson(), VisionAnalysisDto.class);
+                } catch (Exception ignored) {}
+            }
+
+            CategoryValidationService.CategoryValidationResult result = categoryValidationService.validateAndResolve(
+                    job.getCategory(),
+                    job.getCategoryName(),
+                    job.getCategoryConfidence(),
+                    job.getCategoryReason(),
+                    vision,
+                    job.getTitle(),
+                    keywords
+            );
+
+            boolean isSuspicious = !result.isValid()
+                    || result.isContradictionDetected()
+                    || (job.getCategory() == null)
+                    || (job.getCategory() != null && job.getCategory() != result.resolvedCategoryId());
+
+            if (isSuspicious) {
+                suspiciousCount++;
+                suspiciousItems.add(BatchCategoryAuditResponse.SuspiciousCategoryItem.builder()
+                        .imageJobId(job.getId())
+                        .originalFilename(job.getOriginalFilename())
+                        .currentCategory(job.getCategory())
+                        .currentCategoryName(job.getCategoryName())
+                        .suggestedCategory(result.resolvedCategoryId())
+                        .suggestedCategoryName(result.resolvedCategoryName())
+                        .confidence(result.confidence())
+                        .reason(result.reason())
+                        .isManuallyEdited(job.isCategoryManuallyEdited())
+                        .reviewDecision(job.getReviewDecision())
+                        .contradictionDetails(result.contradictionDetails())
+                        .build());
+            } else {
+                validCount++;
+            }
+        }
+
+        return BatchCategoryAuditResponse.builder()
+                .batchId(batchId)
+                .totalImages(total)
+                .validCount(validCount)
+                .suspiciousCount(suspiciousCount)
+                .manuallyEditedCount(manualCount)
+                .suspiciousItems(suspiciousItems)
+                .build();
+    }
+
+    @Transactional
+    public BatchReclassifyResponse reclassifyBatchCategories(UUID batchId, ReclassifyBatchCategoriesRequest request) {
+        ProcessingBatch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch not found: " + batchId));
+
+        List<ImageJob> jobs = jobRepository.findByBatchId(batchId);
+        Set<UUID> targetIds = (request != null && request.getImageJobIds() != null && !request.getImageJobIds().isEmpty())
+                ? new HashSet<>(request.getImageJobIds())
+                : null;
+        boolean onlySuspicious = request == null || request.isOnlySuspicious();
+        boolean includeApproved = request != null && request.isIncludeApproved();
+
+        int reclassifiedCount = 0;
+        int skippedManual = 0;
+        int skippedApproved = 0;
+        int targeted = 0;
+
+        List<BatchReclassifyResponse.ReclassifiedJobItem> items = new ArrayList<>();
+
+        for (ImageJob job : jobs) {
+            if (targetIds != null && !targetIds.contains(job.getId())) {
+                continue;
+            }
+
+            // Preservation rule 1: Never overwrite manually edited categories
+            if (job.isCategoryManuallyEdited()) {
+                skippedManual++;
+                continue;
+            }
+
+            // Preservation rule 2: Never overwrite approved metadata without explicit authorization
+            if (job.getReviewDecision() == ReviewDecision.APPROVED && !includeApproved) {
+                skippedApproved++;
+                continue;
+            }
+
+            List<String> keywords = keywordRepository.findKeywordsByImageJobId(job.getId());
+            VisionAnalysisDto vision = null;
+            var vaOpt = visionAnalysisRepository.findByImageJobId(job.getId());
+            if (vaOpt.isPresent()) {
+                try {
+                    vision = objectMapper.readValue(vaOpt.get().getAnalysisJson(), VisionAnalysisDto.class);
+                } catch (Exception ignored) {}
+            }
+
+            CategoryValidationService.CategoryValidationResult result = categoryValidationService.validateAndResolve(
+                    job.getCategory(),
+                    job.getCategoryName(),
+                    job.getCategoryConfidence(),
+                    job.getCategoryReason(),
+                    vision,
+                    job.getTitle(),
+                    keywords
+            );
+
+            boolean isSuspicious = !result.isValid()
+                    || result.isContradictionDetected()
+                    || (job.getCategory() == null)
+                    || (job.getCategory() != null && job.getCategory() != result.resolvedCategoryId());
+
+            if (onlySuspicious && !isSuspicious) {
+                continue;
+            }
+
+            targeted++;
+            Integer prevCat = job.getCategory();
+            String prevName = job.getCategoryName();
+
+            job.setCategory(result.resolvedCategoryId());
+            job.setCategoryName(result.resolvedCategoryName());
+            job.setCategoryConfidence(result.confidence());
+            job.setCategoryReason(result.reason());
+            if (prevCat != null && prevCat != result.resolvedCategoryId()) {
+                job.setCategorySuggested(prevCat);
+            }
+            job.setUpdatedAt(Instant.now());
+            jobRepository.save(job);
+            reclassifiedCount++;
+
+            items.add(BatchReclassifyResponse.ReclassifiedJobItem.builder()
+                    .imageJobId(job.getId())
+                    .originalFilename(job.getOriginalFilename())
+                    .previousCategory(prevCat)
+                    .previousCategoryName(prevName)
+                    .newCategory(result.resolvedCategoryId())
+                    .newCategoryName(result.resolvedCategoryName())
+                    .confidence(result.confidence())
+                    .reason(result.reason())
+                    .build());
+        }
+
+        log.info("Batch {} category reclassification complete: reclassified={}, skippedManual={}, skippedApproved={}",
+                batchId, reclassifiedCount, skippedManual, skippedApproved);
+
+        return BatchReclassifyResponse.builder()
+                .batchId(batchId)
+                .reclassifiedCount(reclassifiedCount)
+                .skippedManuallyEditedCount(skippedManual)
+                .skippedApprovedCount(skippedApproved)
+                .totalTargeted(targeted)
+                .reclassifiedJobs(items)
                 .build();
     }
 }

@@ -1,4 +1,6 @@
 E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\AdobeStockBatchIntegrationTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\AdobeStockCategoryIntegrationTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\AdobeStockCategoryValidationUnitTest.java
 E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\BatchControllerIntegrationTest.java
 E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\CsvExportServiceTest.java
 E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\DeterministicSafetyValidatorTest.java

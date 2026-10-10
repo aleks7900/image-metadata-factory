@@ -1,4 +1,15 @@
-import type { Batch, ImageJob, PageResponse, ReviewDecision, RiskStatus, CsvValidationResult, CostEstimateResponse } from '../types';
+import type {
+  Batch,
+  ImageJob,
+  PageResponse,
+  ReviewDecision,
+  RiskStatus,
+  CsvValidationResult,
+  CostEstimateResponse,
+  BatchCategoryAuditResponse,
+  ReclassifyBatchCategoriesRequest,
+  BatchReclassifyResponse,
+} from '../types';
 
 const API_BASE = '/api/v1';
 
@@ -179,5 +190,26 @@ export const apiClient = {
 
   getZipExportUrl(batchId: string, policy: string, format = 'ADOBE_STOCK'): string {
     return `${API_BASE}/batches/${batchId}/download.zip?policy=${policy}&format=${format}`;
+  },
+
+  async auditBatchCategories(batchId: string): Promise<BatchCategoryAuditResponse> {
+    const res = await fetch(`${API_BASE}/batches/${batchId}/categories/audit`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Failed to audit batch categories');
+    return res.json();
+  },
+
+  async reclassifyBatchCategories(
+    batchId: string,
+    request?: ReclassifyBatchCategoriesRequest
+  ): Promise<BatchReclassifyResponse> {
+    const res = await fetch(`${API_BASE}/batches/${batchId}/categories/reclassify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request || { onlySuspicious: true, includeApproved: false }),
+    });
+    if (!res.ok) throw new Error('Failed to reclassify batch categories');
+    return res.json();
   },
 };

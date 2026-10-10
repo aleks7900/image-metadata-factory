@@ -45,6 +45,10 @@ public class ImageJobResponse {
 
     private Integer category;
     private String categoryName;
+    private Double categoryConfidence;
+    private String categoryReason;
+    private Integer categorySuggested;
+    private boolean categoryManuallyEdited;
     private String releases;
     private boolean isAiGenerated;
     private Integer imageWidth;

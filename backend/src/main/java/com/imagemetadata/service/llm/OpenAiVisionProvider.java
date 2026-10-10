@@ -136,13 +136,24 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
                 "visionAnalysisJson", visionJson
         ));
 
+        // Multimodal grounding: attach both the generation prompt and the actual image
+        List<Map<String, Object>> userContent = new ArrayList<>();
+        userContent.add(Map.of("type", "text", "text", renderedPrompt));
+
+        if (request != null && request.getImageBytes() != null && request.getImageBytes().length > 0) {
+            String base64Image = Base64.getEncoder().encodeToString(request.getImageBytes());
+            String mimeType = request.getMimeType() != null ? request.getMimeType() : "image/jpeg";
+            String dataUrl = "data:" + mimeType + ";base64," + base64Image;
+            userContent.add(Map.of("type", "image_url", "image_url", Map.of("url", dataUrl, "detail", "auto")));
+        }
+
         Map<String, Object> requestBody = Map.of(
                 "model", model,
                 "temperature", temperature,
                 "max_tokens", maxTokens,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(
-                        Map.of("role", "user", "content", renderedPrompt)
+                        Map.of("role", "user", "content", userContent)
                 )
         );
 
@@ -162,22 +173,71 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
 
             Integer categoryId = null;
             String categoryName = null;
-            if (root.has("categoryId")) {
+            Double categoryConfidence = null;
+            String categoryReason = null;
+
+            JsonNode catNode = root.path("category");
+            if (catNode.isObject()) {
+                if (catNode.has("categoryId")) {
+                    categoryId = catNode.path("categoryId").asInt();
+                } else if (catNode.has("id")) {
+                    categoryId = catNode.path("id").asInt();
+                }
+                if (catNode.has("categoryName")) {
+                    categoryName = catNode.path("categoryName").asText();
+                } else if (catNode.has("name")) {
+                    categoryName = catNode.path("name").asText();
+                }
+                if (catNode.has("confidence")) {
+                    categoryConfidence = catNode.path("confidence").asDouble();
+                }
+                if (catNode.has("reason")) {
+                    categoryReason = catNode.path("reason").asText();
+                }
+            } else if (catNode.isIntegralNumber()) {
+                categoryId = catNode.asInt();
+            } else if (catNode.isTextual()) {
+                categoryName = catNode.asText();
+            }
+
+            if (categoryId == null && root.has("categoryId")) {
                 categoryId = root.path("categoryId").asInt();
+            }
+            if (categoryName == null && root.has("categoryName")) {
+                categoryName = root.path("categoryName").asText();
+            }
+            if (categoryConfidence == null && root.has("confidence")) {
+                categoryConfidence = root.path("confidence").asDouble();
+            }
+            if (categoryReason == null && root.has("reason")) {
+                categoryReason = root.path("reason").asText();
+            }
+
+            // Normalization against official categories
+            if (categoryId != null) {
                 AdobeStockCategory cat = AdobeStockCategory.fromId(categoryId);
-                if (cat != null) categoryName = cat.getName();
-            } else if (root.has("category")) {
-                String catStr = root.path("category").asText();
-                AdobeStockCategory cat = AdobeStockCategory.fromName(catStr);
+                if (cat != null) {
+                    categoryName = cat.getName();
+                }
+            } else if (categoryName != null) {
+                AdobeStockCategory cat = AdobeStockCategory.fromName(categoryName);
                 if (cat != null) {
                     categoryId = cat.getId();
                     categoryName = cat.getName();
                 }
             }
+
+            log.info("LLM metadata category parsed for job {}: categoryId={}, categoryName={}, confidence={}, reason='{}'",
+                    request != null ? request.getImageJobId() : null, categoryId, categoryName, categoryConfidence, categoryReason);
+
             if (categoryId == null) {
                 AdobeStockCategory cat = AdobeStockCategory.inferCategory(title, vision != null ? vision.getEnvironment() : null, vision != null ? vision.getSubjects() : null, keywords);
                 categoryId = cat.getId();
                 categoryName = cat.getName();
+                categoryConfidence = 0.85;
+                categoryReason = "Inferred from visual subjects and keywords.";
+                log.info("Category inferred via fallback for job {}: {} ({})",
+                        request != null ? request.getImageJobId() : null, categoryId, categoryName);
             }
 
             return ImageAnalysisResult.builder()
@@ -186,6 +246,8 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
                     .keywords(keywords)
                     .category(categoryId)
                     .categoryName(categoryName)
+                    .categoryConfidence(categoryConfidence)
+                    .categoryReason(categoryReason)
                     .provider("openai")
                     .model(model)
                     .promptVersion(promptTemplateService.getPromptVersion("metadata-generation.txt"))

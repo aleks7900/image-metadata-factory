@@ -83,6 +83,7 @@ public class MockVisionProvider implements ImageMetadataProvider {
         String filename = request.getOriginalFilename().toLowerCase();
         MockScene scene = getSceneForFilename(filename);
         AdobeStockCategory cat = AdobeStockCategory.inferCategory(scene.title, scene.environment, scene.subjects, scene.keywords);
+        String reason = "Classified based on dominant visual subject: " + (scene.subjects != null && !scene.subjects.isEmpty() ? scene.subjects.get(0) : cat.getName());
 
         long duration = System.currentTimeMillis() - start;
         return ImageAnalysisResult.builder()
@@ -91,6 +92,8 @@ public class MockVisionProvider implements ImageMetadataProvider {
                 .keywords(new ArrayList<>(scene.keywords))
                 .category(cat.getId())
                 .categoryName(cat.getName())
+                .categoryConfidence(0.98)
+                .categoryReason(reason)
                 .provider("mock")
                 .model("mock-metadata-v1")
                 .promptVersion(promptTemplateService.getPromptVersion("metadata-generation.txt"))
@@ -143,7 +146,8 @@ public class MockVisionProvider implements ImageMetadataProvider {
         }
 
         // Check for recognizable persons
-        if (filename.contains("portrait") || filename.contains("person") || filename.contains("face") || filename.contains("model")) {
+        if (filename.contains("portrait") || filename.contains("person") || filename.contains("face") || filename.contains("model")
+                || filename.contains("beauty") || filename.contains("freckled") || filename.contains("woman") || filename.contains("redhead")) {
             findings.add(SafetyFindingDto.builder()
                     .type(SafetyFindingType.PERSON)
                     .value("Recognizable Adult Face")
@@ -254,7 +258,66 @@ public class MockVisionProvider implements ImageMetadataProvider {
     }
 
     private MockScene getSceneForFilename(String filename) {
-        if (filename.contains("cyber") || filename.contains("city") || filename.contains("neon")) {
+        if (filename.contains("beauty") || filename.contains("freckled") || filename.contains("portrait")
+                || filename.contains("person") || filename.contains("woman") || filename.contains("redhead") || filename.contains("face")) {
+            return new MockScene(
+                    "Close-Up Beauty Portrait of Freckled Redhead Woman",
+                    "Close-up beauty portrait of a youthful freckled woman with natural red hair looking serenely toward the camera with soft natural daylight.",
+                    List.of("freckled redhead woman", "beauty portrait"),
+                    List.of("freckles", "red hair", "natural skin", "eyes"),
+                    "Naturally lit indoor portrait studio",
+                    "studio",
+                    List.of("direct eye contact", "gentle smile"),
+                    "beauty portrait photography",
+                    "close-up facial portrait with shallow depth of field",
+                    List.of("copper red", "porcelain cream", "emerald green", "warm peach"),
+                    "soft diffused natural daylight from side window",
+                    "serene, authentic, natural, elegant, radiant",
+                    List.of("natural beauty", "skincare", "freckles", "redhead", "authenticity", "wellness"),
+                    List.of(Map.of("description", "young woman with red hair and natural freckles", "isRecognizable", true, "approximateAge", "20-26")),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    generateKeywords(
+                            "portrait", "woman", "beauty", "freckles", "redhead",
+                            "skincare", "natural beauty", "face", "close-up", "red hair",
+                            "young adult", "porcelain skin", "green eyes", "serene", "elegance",
+                            "facial features", "authenticity", "caucasian", "wellness", "lifestyle",
+                            "fresh", "pure", "daylight", "shallow depth of field", "glowing skin",
+                            "attractive", "studio portrait", "clean skin", "carefree", "cosmetics",
+                            "radiant", "youthful", "headshot", "individual", "human face"
+                    )
+            );
+        } else if (filename.contains("car") || filename.contains("vehicle") || filename.contains("automobile") || filename.contains("transport")) {
+            return new MockScene(
+                    "Sleek Electric Sports Car Driving on Scenic Highway",
+                    "Modern silver electric sports car driving dynamically along a coastal highway during dramatic sunset golden hour.",
+                    List.of("electric sports car", "coastal highway"),
+                    List.of("alloy wheels", "aerodynamic body", "headlights", "asphalt road", "guardrail"),
+                    "Scenic coastal ocean highway",
+                    "outdoor",
+                    List.of("automotive driving", "highway cruising"),
+                    "dynamic commercial automotive photography",
+                    "low angle tracking shot with motion blur",
+                    List.of("metallic silver", "golden amber", "deep ocean blue", "charcoal gray"),
+                    "warm golden hour sunset backlight with lens flare",
+                    "exhilarating, modern, premium, adventurous, fast",
+                    List.of("transportation", "automotive", "electric vehicle", "clean energy", "travel"),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    generateKeywords(
+                            "car", "automobile", "sports car", "electric vehicle", "highway",
+                            "transportation", "vehicle", "driving", "road", "speed",
+                            "automotive", "motion", "travel", "journey", "coastal",
+                            "sunset", "scenic", "luxury", "modern", "technology",
+                            "performance", "asphalt", "drive", "driveway", "sleek",
+                            "commute", "mobility", "traffic", "clean energy", "innovation",
+                            "power", "cruise", "adventure", "horizon", "engineering"
+                    )
+            );
+        } else if (filename.contains("cyber") || filename.contains("city") || filename.contains("neon")) {
             return new MockScene(
                     "Futuristic Neon City Street at Night With Cyberpunk Architecture",
                     "Vibrant cyberpunk metropolis with towering skyscrapers and bright neon signs reflecting off wet asphalt pavements during a dramatic rainy night.",

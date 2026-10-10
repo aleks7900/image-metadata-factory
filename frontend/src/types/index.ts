@@ -84,6 +84,10 @@ export interface ImageJob {
   description?: string;
   category?: number;
   categoryName?: string;
+  categoryConfidence?: number;
+  categoryReason?: string;
+  categorySuggested?: number;
+  categoryManuallyEdited?: boolean;
   releases?: string;
   isAiGenerated?: boolean;
   imageWidth?: number;
@@ -159,4 +163,53 @@ export interface PageResponse<T> {
   number: number;
   first: boolean;
   last: boolean;
+}
+
+export interface SuspiciousCategoryItem {
+  imageJobId: string;
+  originalFilename: string;
+  currentCategory?: number;
+  currentCategoryName?: string;
+  suggestedCategory: number;
+  suggestedCategoryName: string;
+  confidence: number;
+  reason: string;
+  isManuallyEdited: boolean;
+  reviewDecision: ReviewDecision;
+  contradictionDetails?: string;
+}
+
+export interface BatchCategoryAuditResponse {
+  batchId: string;
+  totalImages: number;
+  validCount: number;
+  suspiciousCount: number;
+  manuallyEditedCount: number;
+  suspiciousItems: SuspiciousCategoryItem[];
+}
+
+export interface ReclassifyBatchCategoriesRequest {
+  onlySuspicious?: boolean;
+  includeApproved?: boolean;
+  imageJobIds?: string[];
+}
+
+export interface ReclassifiedJobItem {
+  imageJobId: string;
+  originalFilename: string;
+  previousCategory?: number;
+  previousCategoryName?: string;
+  newCategory: number;
+  newCategoryName: string;
+  confidence: number;
+  reason: string;
+}
+
+export interface BatchReclassifyResponse {
+  batchId: string;
+  reclassifiedCount: number;
+  skippedManuallyEditedCount: number;
+  skippedApprovedCount: number;
+  totalTargeted: number;
+  reclassifiedJobs: ReclassifiedJobItem[];
 }
