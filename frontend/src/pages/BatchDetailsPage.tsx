@@ -14,7 +14,7 @@ import { EmptyState } from '../components/common/EmptyState';
 import { LoadingSkeleton } from '../components/common/LoadingSkeleton';
 import {
   ArrowLeft, Play, Pause, Download, RefreshCw, Upload,
-  LayoutGrid, Table as TableIcon, Eye, Radio, Image as ImageIcon, CheckCheck, AlertTriangle
+  LayoutGrid, Table as TableIcon, Eye, Radio, Image as ImageIcon, CheckCheck, AlertTriangle, Ban
 } from 'lucide-react';
 
 export const BatchDetailsPage: React.FC = () => {
@@ -100,6 +100,14 @@ export const BatchDetailsPage: React.FC = () => {
   const bulkReviewMutation = useMutation({
     mutationFn: ({ risk, decision }: { risk: RiskStatus; decision: ReviewDecision }) =>
       apiClient.bulkReview(batchId!, risk, decision),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
+      queryClient.invalidateQueries({ queryKey: ['batch-images', batchId] });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => apiClient.cancelBatch(batchId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
       queryClient.invalidateQueries({ queryKey: ['batch-images', batchId] });
@@ -226,13 +234,26 @@ export const BatchDetailsPage: React.FC = () => {
             )}
 
             {isProcessing && (
-              <Button
-                variant="secondary"
-                onClick={() => pauseMutation.mutate()}
-                icon={<Pause className="w-4 h-4" />}
-              >
-                Pause
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => pauseMutation.mutate()}
+                  icon={<Pause className="w-4 h-4" />}
+                >
+                  Pause
+                </Button>
+                <Button
+                  variant="tertiary"
+                  onClick={() => {
+                    if (window.confirm('Cancel batch processing? Pending jobs will be halted.')) {
+                      cancelMutation.mutate();
+                    }
+                  }}
+                  icon={<Ban className="w-4 h-4 text-red-500" />}
+                >
+                  Cancel
+                </Button>
+              </>
             )}
 
             {batch.failedImages > 0 && (
@@ -448,6 +469,7 @@ export const BatchDetailsPage: React.FC = () => {
               <tr>
                 <th className="px-4 py-3">Preview</th>
                 <th className="px-4 py-3">Filename / Stock Title</th>
+                <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Compliance</th>
                 <th className="px-4 py-3">Review</th>
@@ -473,6 +495,9 @@ export const BatchDetailsPage: React.FC = () => {
                   <td className="px-4 py-2.5 max-w-xs">
                     <div className="font-mono text-[var(--color-text)] truncate">{img.originalFilename}</div>
                     <div className="text-[var(--color-text-muted)] truncate">{img.title || 'No title generated'}</div>
+                  </td>
+                  <td className="px-4 py-2.5 text-[var(--color-text-muted)] font-medium whitespace-nowrap">
+                    {img.category ? `${img.category} (${img.categoryName || 'General'})` : '—'}
                   </td>
                   <td className="px-4 py-2.5">
                     <JobStatusBadge status={img.status} />

@@ -90,6 +90,17 @@ public class ImageJobManagementService {
 
         job.setTitle(request.getTitle().trim());
         job.setDescription(request.getDescription().trim());
+        if (request.getCategory() != null) {
+            job.setCategory(request.getCategory());
+            AdobeStockCategory cat = AdobeStockCategory.fromId(request.getCategory());
+            job.setCategoryName(cat != null ? cat.getName() : "Custom");
+        }
+        if (request.getReleases() != null) {
+            job.setReleases(request.getReleases().trim());
+        }
+        if (request.getIsAiGenerated() != null) {
+            job.setAiGenerated(request.getIsAiGenerated());
+        }
         job.setUpdatedAt(Instant.now());
 
         // Replace keywords with new ordered set
@@ -179,6 +190,13 @@ public class ImageJobManagementService {
                 .safetyFindings(findingDtos)
                 .visionAnalysis(visionDto)
                 .rawVisionAnalysisJson(rawVision)
+                .category(job.getCategory())
+                .categoryName(job.getCategoryName())
+                .releases(job.getReleases())
+                .isAiGenerated(job.isAiGenerated())
+                .imageWidth(job.getImageWidth())
+                .imageHeight(job.getImageHeight())
+                .complianceStatus(job.getComplianceStatus())
                 .build();
     }
 }

@@ -42,4 +42,12 @@ public class ImageJobResponse {
 
     private VisionAnalysisDto visionAnalysis;
     private String rawVisionAnalysisJson;
+
+    private Integer category;
+    private String categoryName;
+    private String releases;
+    private boolean isAiGenerated;
+    private Integer imageWidth;
+    private Integer imageHeight;
+    private String complianceStatus;
 }

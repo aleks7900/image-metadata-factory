@@ -46,6 +46,8 @@ public interface ImageJobRepository extends JpaRepository<ImageJob, UUID> {
 
     List<ImageJob> findByStatusIn(List<JobStatus> statuses);
 
+    long countByBatchId(UUID batchId);
+
     long countByBatchIdAndStatus(UUID batchId, JobStatus status);
 
     long countByBatchIdAndRiskStatus(UUID batchId, RiskStatus riskStatus);

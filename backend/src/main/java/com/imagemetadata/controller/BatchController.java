@@ -113,6 +113,12 @@ public class BatchController {
         return ResponseEntity.ok(Map.of("message", "Batch processing resumed", "batchId", id.toString()));
     }
 
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<Map<String, String>> cancelBatch(@PathVariable UUID id) {
+        batchService.cancelBatch(id);
+        return ResponseEntity.ok(Map.of("message", "Batch processing cancelled", "batchId", id.toString()));
+    }
+
     @PostMapping("/{id}/bulk-retry")
     public ResponseEntity<Map<String, String>> bulkRetry(@PathVariable UUID id) {
         batchService.retryFailedJobs(id);
@@ -138,19 +144,47 @@ public class BatchController {
         return progressEmitter.registerEmitter(id);
     }
 
+    @GetMapping("/{id}/cost-estimate")
+    public ResponseEntity<CostEstimateResponse> getCostEstimate(@PathVariable UUID id) {
+        return ResponseEntity.ok(batchService.getCostEstimate(id));
+    }
+
+    @GetMapping("/{id}/validate-csv")
+    public ResponseEntity<CsvValidationResult> validateCsv(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "SAFE_AND_APPROVED") CsvExportService.ExportPolicy policy
+    ) {
+        return ResponseEntity.ok(csvExportService.validateBatchForAdobeStock(id, policy));
+    }
+
     @GetMapping("/{id}/export.csv")
     public ResponseEntity<InputStreamResource> exportCsv(
             @PathVariable UUID id,
             @RequestParam(defaultValue = "SAFE_AND_APPROVED") CsvExportService.ExportPolicy policy,
-            @RequestParam(defaultValue = "STANDARD") CsvExportService.ExportFormat format
+            @RequestParam(defaultValue = "ADOBE_STOCK") CsvExportService.ExportFormat format
     ) {
         ByteArrayInputStream csvStream = csvExportService.exportBatchToCsv(id, policy, format);
-        String filename = "batch-" + id + "-metadata.csv";
+        String filename = "adobe-stock-batch-" + id + ".csv";
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
                 .body(new InputStreamResource(csvStream));
+    }
+
+    @GetMapping("/{id}/download.zip")
+    public ResponseEntity<InputStreamResource> downloadZipBundle(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "SAFE_AND_APPROVED") CsvExportService.ExportPolicy policy,
+            @RequestParam(defaultValue = "ADOBE_STOCK") CsvExportService.ExportFormat format
+    ) {
+        ByteArrayInputStream zipStream = csvExportService.exportBatchToZipBundle(id, policy, format);
+        String filename = "adobe-stock-submission-" + id + ".zip";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(new InputStreamResource(zipStream));
     }
 
     @GetMapping("/concurrency")

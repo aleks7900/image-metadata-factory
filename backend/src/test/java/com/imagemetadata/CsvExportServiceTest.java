@@ -17,6 +17,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -127,5 +128,77 @@ class CsvExportServiceTest {
         // Formula =DANGEROUS_FORMULA() must be sanitized with leading quote '=DANGEROUS_FORMULA()
         assertTrue(row.contains("'=DANGEROUS_FORMULA()"));
         assertTrue(row.contains("'+PAYLOAD"));
+    }
+
+    @Test
+    @DisplayName("Adobe Stock export format conforms strictly to Filename,Title,Keywords,Category,Releases")
+    void testAdobeStockCsvExportFormat() throws Exception {
+        safeJob.setCategory(11); // Nature / Landscapes
+        safeJob.setCategoryName("Landscapes");
+        safeJob.setReleases(null);
+
+        when(jobRepository.findByBatchId(batchId)).thenReturn(List.of(safeJob));
+        when(keywordRepository.findByImageJobIdOrderByPositionAsc(any())).thenReturn(List.of(
+                ImageKeyword.builder().keyword("mountain").position(1).build(),
+                ImageKeyword.builder().keyword("sunrise").position(2).build(),
+                ImageKeyword.builder().keyword("snow").position(3).build()
+        ));
+
+        ByteArrayInputStream stream = csvExportService.exportBatchToCsv(
+                batchId,
+                CsvExportService.ExportPolicy.ALL,
+                CsvExportService.ExportFormat.ADOBE_STOCK
+        );
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
+        List<String> lines = reader.lines().toList();
+
+        assertEquals(2, lines.size());
+        assertEquals("Filename,Title,Keywords,Category,Releases", lines.get(0));
+
+        String row = lines.get(1);
+        assertTrue(row.startsWith("landscape.jpg,"));
+        assertTrue(row.contains("Majestic Sunrise Peak"));
+        assertTrue(row.contains("\"mountain, sunrise, snow\""));
+        assertTrue(row.contains(",11,")); // Category 11
+        // Verify Description is not in header or columns
+        assertFalse(lines.get(0).toLowerCase().contains("description"));
+    }
+
+    @Test
+    @DisplayName("validateBatchForAdobeStock correctly identifies valid rows and validation errors")
+    void testAdobeStockValidation() {
+        safeJob.setCategory(11);
+        safeJob.setTitle("Majestic Sunrise Peak");
+
+        ImageJob invalidJob = ImageJob.builder()
+                .id(UUID.randomUUID())
+                .batchId(batchId)
+                .originalFilename("incomplete.jpg")
+                .status(JobStatus.READY)
+                .title("") // Missing title
+                .category(null)
+                .riskStatus(RiskStatus.SAFE)
+                .reviewDecision(ReviewDecision.APPROVED)
+                .build();
+
+        // 35 keywords for safeJob so it passes validation cleanly
+        List<ImageKeyword> safeKeywords = new ArrayList<>();
+        for (int i = 1; i <= 35; i++) {
+            safeKeywords.add(ImageKeyword.builder().keyword("keyword" + i).position(i).build());
+        }
+
+        when(jobRepository.findByBatchId(batchId)).thenReturn(List.of(safeJob, invalidJob));
+        when(keywordRepository.findByImageJobIdOrderByPositionAsc(safeJob.getId())).thenReturn(safeKeywords);
+        when(keywordRepository.findByImageJobIdOrderByPositionAsc(invalidJob.getId())).thenReturn(List.of());
+
+        var result = csvExportService.validateBatchForAdobeStock(batchId, CsvExportService.ExportPolicy.ALL);
+
+        assertNotNull(result);
+        assertEquals(2, result.getTotalImagesCount());
+        assertEquals(2, result.getExportableImagesCount());
+        assertFalse(result.isValid());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("has an empty title")));
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("requires at least 5 keywords")));
     }
 }

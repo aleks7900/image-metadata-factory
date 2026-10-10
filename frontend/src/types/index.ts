@@ -1,4 +1,4 @@
-export type BatchStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED';
+export type BatchStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED' | 'CANCELLED';
 
 export type JobStatus =
   | 'UPLOADED'
@@ -13,7 +13,17 @@ export type RiskStatus = 'SAFE' | 'REVIEW_REQUIRED' | 'REJECT';
 
 export type ReviewDecision = 'PENDING' | 'APPROVED' | 'REJECTED';
 
-export type SafetyFindingType = 'TRADEMARK' | 'PERSON' | 'COPYRIGHT' | 'VISIBLE_TEXT';
+export type SafetyFindingType =
+  | 'TRADEMARK'
+  | 'PERSON'
+  | 'PROPERTY_RELEASE'
+  | 'COPYRIGHT'
+  | 'WATERMARK'
+  | 'QUALITY'
+  | 'AI_ARTIFACT'
+  | 'METADATA_ISSUE'
+  | 'DUPLICATE'
+  | 'VISIBLE_TEXT';
 
 export interface Batch {
   id: string;
@@ -72,6 +82,13 @@ export interface ImageJob {
   status: JobStatus;
   title?: string;
   description?: string;
+  category?: number;
+  categoryName?: string;
+  releases?: string;
+  isAiGenerated?: boolean;
+  imageWidth?: number;
+  imageHeight?: number;
+  complianceStatus?: string;
   riskStatus: RiskStatus;
   reviewDecision: ReviewDecision;
   errorMessage?: string;
@@ -83,6 +100,39 @@ export interface ImageJob {
   safetyFindings: SafetyFinding[];
   visionAnalysis?: VisionAnalysis;
   rawVisionAnalysisJson?: string;
+}
+
+export interface CsvValidationResult {
+  valid: boolean;
+  exportableImagesCount: number;
+  totalImagesCount: number;
+  policy: string;
+  format: string;
+  errors: string[];
+  warnings: string[];
+  previewRows: Record<string, string>[];
+}
+
+export interface ModelCostEstimate {
+  provider: string;
+  model: string;
+  description: string;
+  estimatedInputTokensPerImage: number;
+  estimatedOutputTokensPerImage: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  costPerImageUsd: number;
+  totalBatchCostUsd: number;
+  costFor100ImagesUsd: number;
+  costFor500ImagesUsd: number;
+  costFor1000ImagesUsd: number;
+}
+
+export interface CostEstimateResponse {
+  batchId: string;
+  totalImages: number;
+  pendingImages: number;
+  estimates: ModelCostEstimate[];
 }
 
 export interface BatchProgressEvent {

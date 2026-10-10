@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemetadata.dto.SafetyFindingDto;
 import com.imagemetadata.dto.VisionAnalysisDto;
 import com.imagemetadata.exception.LlmProviderException;
+import com.imagemetadata.model.AdobeStockCategory;
 import com.imagemetadata.model.RiskStatus;
 import com.imagemetadata.model.SafetyFindingType;
 import lombok.extern.slf4j.Slf4j;
@@ -159,10 +160,32 @@ public class OpenAiVisionProvider implements ImageMetadataProvider {
                 kwNode.forEach(k -> keywords.add(k.asText().trim().toLowerCase()));
             }
 
+            Integer categoryId = null;
+            String categoryName = null;
+            if (root.has("categoryId")) {
+                categoryId = root.path("categoryId").asInt();
+                AdobeStockCategory cat = AdobeStockCategory.fromId(categoryId);
+                if (cat != null) categoryName = cat.getName();
+            } else if (root.has("category")) {
+                String catStr = root.path("category").asText();
+                AdobeStockCategory cat = AdobeStockCategory.fromName(catStr);
+                if (cat != null) {
+                    categoryId = cat.getId();
+                    categoryName = cat.getName();
+                }
+            }
+            if (categoryId == null) {
+                AdobeStockCategory cat = AdobeStockCategory.inferCategory(title, vision != null ? vision.getEnvironment() : null, vision != null ? vision.getSubjects() : null, keywords);
+                categoryId = cat.getId();
+                categoryName = cat.getName();
+            }
+
             return ImageAnalysisResult.builder()
                     .title(title)
                     .description(description)
                     .keywords(keywords)
+                    .category(categoryId)
+                    .categoryName(categoryName)
                     .provider("openai")
                     .model(model)
                     .promptVersion(promptTemplateService.getPromptVersion("metadata-generation.txt"))

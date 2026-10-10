@@ -3,6 +3,7 @@ package com.imagemetadata.service.llm;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imagemetadata.dto.SafetyFindingDto;
 import com.imagemetadata.dto.VisionAnalysisDto;
+import com.imagemetadata.model.AdobeStockCategory;
 import com.imagemetadata.model.RiskStatus;
 import com.imagemetadata.model.SafetyFindingType;
 import lombok.extern.slf4j.Slf4j;
@@ -81,12 +82,15 @@ public class MockVisionProvider implements ImageMetadataProvider {
 
         String filename = request.getOriginalFilename().toLowerCase();
         MockScene scene = getSceneForFilename(filename);
+        AdobeStockCategory cat = AdobeStockCategory.inferCategory(scene.title, scene.environment, scene.subjects, scene.keywords);
 
         long duration = System.currentTimeMillis() - start;
         return ImageAnalysisResult.builder()
                 .title(scene.title)
                 .description(scene.description)
                 .keywords(new ArrayList<>(scene.keywords))
+                .category(cat.getId())
+                .categoryName(cat.getName())
                 .provider("mock")
                 .model("mock-metadata-v1")
                 .promptVersion(promptTemplateService.getPromptVersion("metadata-generation.txt"))
@@ -127,7 +131,7 @@ public class MockVisionProvider implements ImageMetadataProvider {
                     .build());
             riskStatus = RiskStatus.REJECT;
             reasoning = "High-confidence registered trademark detected: Apple";
-        } else if (filename.contains("tesla") || filename.contains("coca-cola") || filename.contains("mcdonald")) {
+        } else if (filename.contains("tesla") || filename.contains("coca-cola") || filename.contains("mcdonald") || filename.contains("brand") || filename.contains("logo") || filename.contains("store")) {
             findings.add(SafetyFindingDto.builder()
                     .type(SafetyFindingType.TRADEMARK)
                     .value("Commercial Brand")
@@ -154,7 +158,7 @@ public class MockVisionProvider implements ImageMetadataProvider {
         }
 
         // Check for copyrighted IP
-        if (filename.contains("spiderman") || filename.contains("spider-man") || filename.contains("mario") || filename.contains("disney") || filename.contains("pokemon")) {
+        if (filename.contains("spiderman") || filename.contains("spider-man") || filename.contains("mario") || filename.contains("disney") || filename.contains("pokemon") || filename.contains("character") || filename.contains("ip-")) {
             findings.add(SafetyFindingDto.builder()
                     .type(SafetyFindingType.COPYRIGHT)
                     .value("Copyrighted Character / Franchise")
@@ -163,6 +167,30 @@ public class MockVisionProvider implements ImageMetadataProvider {
                     .build());
             riskStatus = RiskStatus.REJECT;
             reasoning = "Protected fictional character / copyrighted IP identified.";
+        }
+
+        // Check for blurred abstract quality
+        if (filename.contains("blurred") || filename.contains("abstract")) {
+            findings.add(SafetyFindingDto.builder()
+                    .type(SafetyFindingType.QUALITY)
+                    .value("Abstract Shallow Focus")
+                    .confidence(0.85)
+                    .reason("Image has significant soft blur and shallow depth of field.")
+                    .build());
+        }
+
+        // Check for visible text
+        if (filename.contains("visible-text") || filename.contains("text")) {
+            findings.add(SafetyFindingDto.builder()
+                    .type(SafetyFindingType.VISIBLE_TEXT)
+                    .value("Visible Signage Text")
+                    .confidence(0.88)
+                    .reason("Visible text strings identified in the image scene; inspect for unauthorized brand signage.")
+                    .build());
+            if (riskStatus == RiskStatus.SAFE) {
+                riskStatus = RiskStatus.REVIEW_REQUIRED;
+                reasoning = "Visible text in scene requires review.";
+            }
         }
 
         long duration = System.currentTimeMillis() - start;
@@ -282,6 +310,122 @@ public class MockVisionProvider implements ImageMetadataProvider {
                             "productivity", "career", "partnership", "success", "entrepreneur",
                             "workspace", "group discussion", "indoor", "finance", "management",
                             "technology", "laptop", "team", "together", "professional"
+                    )
+            );
+        } else if (filename.contains("food") || filename.contains("meal") || filename.contains("dish")) {
+            return new MockScene(
+                    "Artisan Gourmet Food Platter on Rustic Table",
+                    "Freshly prepared culinary dishes and colorful wholesome ingredients arranged beautifully on a rustic farmhouse wooden dining table.",
+                    List.of("culinary dishes", "fresh ingredients"),
+                    List.of("serving platter", "rustic table", "herbs", "olive oil", "fork", "plate"),
+                    "Warm artisan rustic restaurant kitchen",
+                    "indoor",
+                    List.of("food presentation", "dining"),
+                    "gourmet food photography",
+                    "overhead flat lay composition",
+                    List.of("warm brown", "vibrant green", "terracotta red", "golden yellow"),
+                    "soft diffused ambient daylight",
+                    "appetizing, wholesome, delicious, authentic",
+                    List.of("food", "gastronomy", "healthy dining", "nutrition", "hospitality"),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    generateKeywords(
+                            "food", "gourmet", "meal", "delicious", "healthy",
+                            "culinary", "restaurant", "fresh", "dinner", "vegetables",
+                            "cooking", "plate", "rustic", "wooden table", "nutrition",
+                            "organic", "tasty", "appetizer", "homemade", "dining",
+                            "cuisine", "herbs", "olive oil", "presentation", "lunch",
+                            "flavor", "dish", "chef", "tableware", "wholesome",
+                            "feast", "eating", "gastronomic", "kitchen", "recipe"
+                    )
+            );
+        } else if (filename.contains("architecture") || filename.contains("building")) {
+            return new MockScene(
+                    "Modern Skyscraper Geometric Facade and Windows",
+                    "Striking geometric architectural lines and modern glass panels of a contemporary corporate skyscraper reflecting afternoon daylight.",
+                    List.of("modern skyscraper", "geometric facade"),
+                    List.of("glass windows", "steel frames", "reflections", "concrete pillars"),
+                    "Metropolitan financial business district",
+                    "outdoor",
+                    List.of("architectural viewing"),
+                    "minimalist architectural photography",
+                    "upward low angle looking toward blue sky",
+                    List.of("silver", "reflective blue", "gray", "white"),
+                    "bright direct sunlight creating geometric shadows",
+                    "minimalist, modern, grand, sophisticated",
+                    List.of("architecture", "engineering", "urban design", "modernity", "commercial building"),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    generateKeywords(
+                            "architecture", "skyscraper", "building", "modern", "facade",
+                            "geometric", "glass", "urban", "city", "structure",
+                            "contemporary", "exterior", "windows", "metropolis", "steel",
+                            "minimalist", "low angle", "corporate", "reflection", "blue sky",
+                            "financial district", "office building", "construction", "pattern", "symmetry",
+                            "perspective", "height", "commercial", "tower", "downtown",
+                            "design", "business", "futuristic", "sunlight", "landmark"
+                    )
+            );
+        } else if (filename.contains("wildlife") || filename.contains("animal") || filename.contains("bear")) {
+            return new MockScene(
+                    "Majestic Wild Bear Foraging Along Mountain River",
+                    "Large wild brown bear walking gracefully along a rushing clear alpine river surrounded by dense pristine evergreen pines.",
+                    List.of("brown bear", "mountain river"),
+                    List.of("river rocks", "pine forest", "rushing water", "boulders"),
+                    "Remote wilderness river bank",
+                    "outdoor",
+                    List.of("wildlife foraging", "salmon fishing"),
+                    "documentary wildlife telephoto photography",
+                    "eye-level wildlife action shot",
+                    List.of("rich brown", "forest green", "river blue", "slate gray"),
+                    "diffused afternoon wilderness light",
+                    "wild, powerful, majestic, untamed",
+                    List.of("wildlife", "nature conservation", "predator", "fauna", "biodiversity"),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    generateKeywords(
+                            "wildlife", "bear", "animal", "nature", "forest",
+                            "wilderness", "river", "mountain", "outdoors", "predator",
+                            "grizzly", "brown bear", "fauna", "wild", "natural habitat",
+                            "freshwater", "pine trees", "fur", "water", "salmon",
+                            "stones", "north america", "solitude", "ecosystem", "conservation",
+                            "hunting", "powerful", "zoology", "stream", "park",
+                            "remote", "survival", "mammal", "purity", "environment"
+                    )
+            );
+        } else if (filename.contains("abstract") || filename.contains("blurred")) {
+            return new MockScene(
+                    "Abstract Soft Bokeh Color Light Background",
+                    "Smooth out-of-focus luminous colorful circles and gentle gradient light rays creating an elegant dreamy abstract backdrop.",
+                    List.of("abstract bokeh lights", "gradient background"),
+                    List.of("light spheres", "glowing particles", "soft flares"),
+                    "Studio lighting abstraction",
+                    "studio",
+                    List.of(),
+                    "abstract macro optics photography",
+                    "shallow focus dreamy arrangement",
+                    List.of("soft gold", "pastel violet", "warm peach", "deep indigo"),
+                    "defocused ambient glow",
+                    "dreamy, tranquil, imaginative, ethereal",
+                    List.of("abstraction", "background", "elegance", "creativity", "celebration"),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    generateKeywords(
+                            "abstract", "bokeh", "background", "lights", "blurred",
+                            "soft focus", "glowing", "gradient", "circles", "defocused",
+                            "wallpaper", "texture", "luminous", "dreamy", "colors",
+                            "bright", "glow", "artistic", "glamour", "festive",
+                            "celebration", "sparkle", "glitter", "modern", "design",
+                            "elegance", "smooth", "ambient", "pattern", "illumination",
+                            "magic", "creative", "optical", "shimmer", "backdrop"
                     )
             );
         } else {

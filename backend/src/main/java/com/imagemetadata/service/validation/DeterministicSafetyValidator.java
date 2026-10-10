@@ -55,8 +55,20 @@ public class DeterministicSafetyValidator {
             Map.entry("barbie", "Mattel copyrighted character and trademark")
     );
 
+    private static final Set<String> WATERMARK_INDICATORS = Set.of(
+            "watermark", "shutterstock", "getty images", "istock", "depositphotos", "alamy", "stock photo watermark", "sample watermark"
+    );
+
+    private static final Set<String> PROPERTY_RELEASE_INDICATORS = Set.of(
+            "private estate", "disney castle", "eiffel tower night", "sydney opera house interior", "private architecture", "louvre museum interior"
+    );
+
+    private static final Set<String> AI_ARTIFACT_INDICATORS = Set.of(
+            "extra fingers", "distorted hands", "ai glitch", "anatomical error", "deformed fingers", "ai artifact"
+    );
+
     private static final Set<String> FORBIDDEN_METADATA_WORDS = Set.of(
-            "celebrity", "nsfw", "nude", "hate", "violence", "counterfeit", "replica"
+            "celebrity", "nsfw", "nude", "hate", "violence", "counterfeit", "replica", "breaking news", "exclusive photo"
     );
 
     public SafetyEvaluationResult evaluate(
@@ -120,14 +132,75 @@ public class DeterministicSafetyValidator {
             }
         }
 
-        // 4. People and Model Release Checks
+        // 4. Watermark Checks
+        for (String wm : WATERMARK_INDICATORS) {
+            if (combinedText.contains(wm)) {
+                findings.add(SafetyFindingDto.builder()
+                        .type(SafetyFindingType.WATERMARK)
+                        .value(wm)
+                        .confidence(0.99)
+                        .reason("Watermark or third-party agency indicator detected: " + wm)
+                        .build());
+                computedRisk = RiskStatus.REJECT;
+                reasoning.append("Watermark detected: ").append(wm).append(". ");
+            }
+        }
+
+        // 5. Property Release Checks
+        for (String prop : PROPERTY_RELEASE_INDICATORS) {
+            if (combinedText.contains(prop)) {
+                findings.add(SafetyFindingDto.builder()
+                        .type(SafetyFindingType.PROPERTY_RELEASE)
+                        .value(prop)
+                        .confidence(0.90)
+                        .reason("Distinct private property or protected architectural landmark requiring property release: " + prop)
+                        .build());
+                if (computedRisk != RiskStatus.REJECT) {
+                    computedRisk = RiskStatus.REVIEW_REQUIRED;
+                }
+                reasoning.append("Property release may be required for: ").append(prop).append(". ");
+            }
+        }
+
+        // 6. AI Artifacts
+        for (String art : AI_ARTIFACT_INDICATORS) {
+            if (combinedText.contains(art)) {
+                findings.add(SafetyFindingDto.builder()
+                        .type(SafetyFindingType.AI_ARTIFACT)
+                        .value(art)
+                        .confidence(0.85)
+                        .reason("Possible generative visual artifact detected: " + art)
+                        .build());
+                if (computedRisk != RiskStatus.REJECT) {
+                    computedRisk = RiskStatus.REVIEW_REQUIRED;
+                }
+                reasoning.append("AI generative artifact flagged: ").append(art).append(". ");
+            }
+        }
+
+        // 7. Forbidden Metadata
+        for (String forbidden : FORBIDDEN_METADATA_WORDS) {
+            Pattern pattern = Pattern.compile("\\b" + Pattern.quote(forbidden) + "\\b", Pattern.CASE_INSENSITIVE);
+            if (pattern.matcher(combinedText).find()) {
+                findings.add(SafetyFindingDto.builder()
+                        .type(SafetyFindingType.METADATA_ISSUE)
+                        .value(forbidden)
+                        .confidence(0.92)
+                        .reason("Metadata contains prohibited stock term or unsupported editorial claim: " + forbidden)
+                        .build());
+                computedRisk = RiskStatus.REJECT;
+                reasoning.append("Prohibited metadata term: ").append(forbidden).append(". ");
+            }
+        }
+
+        // 8. People and Model Release Checks
         boolean modelReleaseRequired = false;
         if (vision != null && vision.getPossiblePeople() != null && !vision.getPossiblePeople().isEmpty()) {
             findings.add(SafetyFindingDto.builder()
                     .type(SafetyFindingType.PERSON)
                     .value("Human Subject Detected")
                     .confidence(0.90)
-                    .reason("Vision analysis identified " + vision.getPossiblePeople().size() + " visible person(s). A model release is required for commercial licensing.")
+                    .reason("Vision analysis identified " + vision.getPossiblePeople().size() + " visible person(s). A signed model release is required for commercial licensing.")
                     .build());
             modelReleaseRequired = true;
             if (computedRisk != RiskStatus.REJECT) {
@@ -136,7 +209,7 @@ public class DeterministicSafetyValidator {
             }
         }
 
-        // 5. Visible Text warning
+        // 9. Visible Text warning
         if (vision != null && vision.getVisibleText() != null && !vision.getVisibleText().isEmpty()) {
             findings.add(SafetyFindingDto.builder()
                     .type(SafetyFindingType.VISIBLE_TEXT)
@@ -154,13 +227,37 @@ public class DeterministicSafetyValidator {
             reasoning.append("All deterministic safety and compliance checks passed.");
         }
 
-        return new SafetyEvaluationResult(computedRisk, reasoning.toString().trim(), findings, modelReleaseRequired);
+        String complianceStatus = mapComplianceStatus(computedRisk, findings);
+
+        return new SafetyEvaluationResult(computedRisk, complianceStatus, reasoning.toString().trim(), findings, modelReleaseRequired);
+    }
+
+    public static String mapComplianceStatus(RiskStatus riskStatus, List<SafetyFindingDto> findings) {
+        if (riskStatus == RiskStatus.REJECT) {
+            return "BLOCKED BY LOCAL VALIDATION";
+        }
+        if (riskStatus == RiskStatus.REVIEW_REQUIRED) {
+            return "REVIEW REQUIRED";
+        }
+        if (findings != null && findings.stream().anyMatch(f ->
+                f.getType() == SafetyFindingType.QUALITY ||
+                f.getType() == SafetyFindingType.VISIBLE_TEXT ||
+                f.getType() == SafetyFindingType.AI_ARTIFACT)) {
+            return "WARNING";
+        }
+        return "PASS";
     }
 
     public record SafetyEvaluationResult(
             RiskStatus riskStatus,
+            String complianceStatus,
             String reasoning,
             List<SafetyFindingDto> findings,
             boolean modelReleaseMayBeRequired
-    ) {}
+    ) {
+        // Overload constructor for backwards compatibility
+        public SafetyEvaluationResult(RiskStatus riskStatus, String reasoning, List<SafetyFindingDto> findings, boolean modelReleaseMayBeRequired) {
+            this(riskStatus, mapComplianceStatus(riskStatus, findings), reasoning, findings, modelReleaseMayBeRequired);
+        }
+    }
 }

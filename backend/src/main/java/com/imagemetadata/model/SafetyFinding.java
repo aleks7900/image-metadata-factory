@@ -25,7 +25,7 @@ public class SafetyFinding {
     @Column(name = "type", nullable = false, length = 50)
     private SafetyFindingType type;
 
-    @Column(name = "value", nullable = false)
+    @Column(name = "\"value\"", nullable = false)
     private String value;
 
     @Column(name = "confidence", nullable = false)

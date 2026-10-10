@@ -27,6 +27,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
+  const [category, setCategory] = useState<number>(11);
+  const [releases, setReleases] = useState<string>('');
+  const [isAiGenerated, setIsAiGenerated] = useState<boolean>(false);
   const [newKeywordInput, setNewKeywordInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -38,6 +41,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       setTitle(image.title || '');
       setDescription(image.description || '');
       setKeywords(image.keywords || []);
+      setCategory(image.category || 11);
+      setReleases(image.releases || '');
+      setIsAiGenerated(image.isAiGenerated || false);
       setStatusMessage(null);
     }
   }, [image]);
@@ -52,6 +58,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         title: title.trim(),
         description: description.trim(),
         keywords,
+        category,
+        releases: releases.trim(),
+        isAiGenerated,
       });
       setStatusMessage('Metadata saved successfully!');
       onUpdated();
@@ -379,6 +388,70 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                           </button>
                         </span>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Adobe Stock Specific Fields */}
+                  <div className="pt-3 border-t border-[var(--color-border)] space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text)] block mb-1">
+                          Adobe Stock Category
+                        </label>
+                        <select
+                          value={category}
+                          onChange={(e) => setCategory(Number(e.target.value))}
+                          className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)]"
+                        >
+                          <option value={1}>1 - Animals</option>
+                          <option value={2}>2 - Buildings and Architecture</option>
+                          <option value={3}>3 - Business</option>
+                          <option value={4}>4 - Drinks</option>
+                          <option value={5}>5 - The Environment</option>
+                          <option value={6}>6 - States of Mind</option>
+                          <option value={7}>7 - Food</option>
+                          <option value={8}>8 - Graphic Resources</option>
+                          <option value={9}>9 - Hobbies and Leisure</option>
+                          <option value={10}>10 - Industry</option>
+                          <option value={11}>11 - Landscapes</option>
+                          <option value={12}>12 - Lifestyle</option>
+                          <option value={13}>13 - People</option>
+                          <option value={14}>14 - Plants and Flowers</option>
+                          <option value={15}>15 - Culture and Religion</option>
+                          <option value={16}>16 - Science</option>
+                          <option value={17}>17 - Social Issues</option>
+                          <option value={18}>18 - Sports</option>
+                          <option value={19}>19 - Technology</option>
+                          <option value={20}>20 - Transport</option>
+                          <option value={21}>21 - Travel</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text)] block mb-1">
+                          Model / Property Releases
+                        </label>
+                        <input
+                          type="text"
+                          value={releases}
+                          onChange={(e) => setReleases(e.target.value)}
+                          placeholder="e.g. release_model_01.pdf (leave blank if unreleased)"
+                          className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="isAiGenToggle"
+                        checked={isAiGenerated}
+                        onChange={(e) => setIsAiGenerated(e.target.checked)}
+                        className="rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                      />
+                      <label htmlFor="isAiGenToggle" className="text-xs font-medium text-[var(--color-text)] cursor-pointer">
+                        Mark as AI-Generated Content (Complies with Adobe Stock Generative AI submission requirements)
+                      </label>
                     </div>
                   </div>
 

@@ -27,4 +27,8 @@ public class UpdateMetadataRequest {
     @NotEmpty(message = "Keywords list cannot be empty")
     @Size(min = 1, max = 100, message = "Keywords list must contain between 1 and 100 items")
     private List<String> keywords;
+
+    private Integer category;
+    private String releases;
+    private Boolean isAiGenerated;
 }

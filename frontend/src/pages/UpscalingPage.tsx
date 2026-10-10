@@ -17,6 +17,8 @@ export const UpscalingPage: React.FC = () => {
   const [originalImageUrl, setOriginalImageUrl] = useState(
     'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1024&q=80'
   );
+  const [origWidth, setOrigWidth] = useState(1024);
+  const [origHeight, setOrigHeight] = useState(1024);
   const [originalDimensions, setOriginalDimensions] = useState('1024 × 1024');
   const [upscaledImageUrl, setUpscaledImageUrl] = useState<string | null>(
     'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=4096&q=95'
@@ -25,36 +27,59 @@ export const UpscalingPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
 
-  const targetDimensions =
-    scaleFactor === '2x'
-      ? '2048 × 2048'
-      : scaleFactor === '4x'
-      ? '4096 × 4096'
-      : '8192 × 8192';
+  const scaleMultiplier = scaleFactor === '2x' ? 2 : scaleFactor === '4x' ? 4 : 8;
+  const targetDimensions = `${origWidth * scaleMultiplier} × ${origHeight * scaleMultiplier}`;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        setOrigWidth(img.naturalWidth);
+        setOrigHeight(img.naturalHeight);
+        setOriginalDimensions(`${img.naturalWidth} × ${img.naturalHeight}`);
+      };
+      img.src = url;
       setOriginalImageUrl(url);
-      setOriginalDimensions('1024 × 1024');
       setUpscaledImageUrl(null);
     }
   };
 
   const handleRunUpscale = () => {
     setIsProcessing(true);
-    setTimeout(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const targetW = img.naturalWidth * scaleMultiplier;
+      const targetH = img.naturalHeight * scaleMultiplier;
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        const upscaledDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        setUpscaledImageUrl(upscaledDataUrl);
+      } else {
+        setUpscaledImageUrl(originalImageUrl);
+      }
+      setIsProcessing(false);
+    };
+    img.onerror = () => {
       setUpscaledImageUrl(originalImageUrl);
       setIsProcessing(false);
-    }, 1500);
+    };
+    img.src = originalImageUrl;
   };
 
   const handleDownload = () => {
     if (!upscaledImageUrl) return;
     const link = document.createElement('a');
     link.href = upscaledImageUrl;
-    link.download = `upscaled-${scaleFactor}.jpg`;
+    link.download = `upscaled-${scaleFactor}-${targetDimensions.replace(/\s+/g, '')}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

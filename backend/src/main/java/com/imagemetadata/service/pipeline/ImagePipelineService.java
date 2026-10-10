@@ -7,6 +7,7 @@ import com.imagemetadata.exception.LlmProviderException;
 import com.imagemetadata.model.*;
 import com.imagemetadata.repository.*;
 import com.imagemetadata.service.llm.*;
+import com.imagemetadata.service.storage.ImageOptimizationService;
 import com.imagemetadata.service.storage.ImageStorageService;
 import com.imagemetadata.service.validation.DeterministicSafetyValidator;
 import com.imagemetadata.service.validation.MetadataQualityValidator;
@@ -32,7 +33,7 @@ public class ImagePipelineService {
     private final DeterministicSafetyValidator deterministicSafetyValidator;
     private final MetadataQualityValidator metadataQualityValidator;
     private final ObjectMapper objectMapper;
-
+    private final ImageOptimizationService imageOptimizationService;
     private final int maxRetries;
     private final boolean autoRepairEnabled;
 
@@ -47,6 +48,7 @@ public class ImagePipelineService {
             DeterministicSafetyValidator deterministicSafetyValidator,
             MetadataQualityValidator metadataQualityValidator,
             ObjectMapper objectMapper,
+            ImageOptimizationService imageOptimizationService,
             @Value("${app.processing.max-retries:3}") int maxRetries,
             @Value("${app.validation.auto-repair-enabled:true}") boolean autoRepairEnabled
     ) {
@@ -60,6 +62,7 @@ public class ImagePipelineService {
         this.deterministicSafetyValidator = deterministicSafetyValidator;
         this.metadataQualityValidator = metadataQualityValidator;
         this.objectMapper = objectMapper;
+        this.imageOptimizationService = imageOptimizationService;
         this.maxRetries = maxRetries;
         this.autoRepairEnabled = autoRepairEnabled;
     }
@@ -89,13 +92,18 @@ public class ImagePipelineService {
                 throw new IllegalArgumentException("Corrupt or invalid image file: signature does not match supported image formats (JPEG, PNG, WebP)");
             }
 
+            ImageOptimizationService.ImageInfo imageInfo = imageOptimizationService.inspectAndOptimizeForVision(imageBytes, job.getMimeType());
+            job.setImageWidth(imageInfo.getWidth());
+            job.setImageHeight(imageInfo.getHeight());
+            byte[] visionInputBytes = imageInfo.getOptimizedVisionBytes() != null ? imageInfo.getOptimizedVisionBytes() : imageBytes;
+
             ImageAnalysisRequest request = ImageAnalysisRequest.builder()
                     .batchId(job.getBatchId())
                     .imageJobId(job.getId())
                     .originalFilename(job.getOriginalFilename())
                     .storagePath(job.getStoragePath())
                     .mimeType(job.getMimeType())
-                    .imageBytes(imageBytes)
+                    .imageBytes(visionInputBytes)
                     .build();
 
             ImageAnalysisResult visionResult = provider.analyzeVision(request);
@@ -124,6 +132,16 @@ public class ImagePipelineService {
             List<SafetyFindingDto> combinedFindings = new ArrayList<>(safetyResult.getSafetyFindings());
             combinedFindings.addAll(deterministicResult.findings());
 
+            // Add resolution finding if below Adobe Stock recommendation
+            if (imageInfo.getWidth() > 0 && !imageInfo.isMeetsAdobeStockResolution()) {
+                combinedFindings.add(SafetyFindingDto.builder()
+                        .type(SafetyFindingType.QUALITY)
+                        .value("Low Resolution (" + imageInfo.getWidth() + "x" + imageInfo.getHeight() + ")")
+                        .confidence(0.95)
+                        .reason("Image resolution is below Adobe Stock's recommended 4 Megapixels.")
+                        .build());
+            }
+
             // 4. Stage: QUALITY_VALIDATION
             updateJobStatus(job, JobStatus.QUALITY_VALIDATION, null);
             MetadataQualityValidator.QualityValidationResult qualityResult =
@@ -151,7 +169,7 @@ public class ImagePipelineService {
             }
 
             // 5. Final Stage: READY
-            finalizeJob(job, qualityResult, finalRisk, combinedFindings, System.currentTimeMillis() - pipelineStartTime);
+            finalizeJob(job, qualityResult, finalRisk, combinedFindings, visionResult.getVision(), System.currentTimeMillis() - pipelineStartTime);
             log.info("Job {} successfully completed in {}ms. Risk={}, Title='{}'", job.getId(), job.getProcessingDurationMs(), finalRisk, job.getTitle());
 
         } catch (Exception e) {
@@ -226,6 +244,7 @@ public class ImagePipelineService {
             MetadataQualityValidator.QualityValidationResult qualityResult,
             RiskStatus finalRisk,
             List<SafetyFindingDto> findings,
+            VisionAnalysisDto visionDto,
             long durationMs
     ) {
         job.setTitle(qualityResult.sanitizedTitle());
@@ -236,6 +255,22 @@ public class ImagePipelineService {
         job.setErrorMessage(null);
         job.setProcessingDurationMs(durationMs);
         job.setUpdatedAt(Instant.now());
+
+        // Infer Adobe Stock category if not manually provided
+        if (job.getCategory() == null) {
+            AdobeStockCategory category = AdobeStockCategory.inferCategory(
+                    qualityResult.sanitizedTitle(),
+                    visionDto != null ? visionDto.getEnvironment() : null,
+                    visionDto != null ? visionDto.getSubjects() : null,
+                    qualityResult.sanitizedKeywords()
+            );
+            job.setCategory(category.getId());
+            job.setCategoryName(category.getName());
+        }
+
+        // Compute compliance status
+        String complianceStatus = DeterministicSafetyValidator.mapComplianceStatus(finalRisk, findings);
+        job.setComplianceStatus(complianceStatus);
 
         // Clear existing keywords & findings for idempotency
         keywordRepository.deleteByImageJobId(job.getId());

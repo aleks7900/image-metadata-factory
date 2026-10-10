@@ -1,4 +1,4 @@
-import type { Batch, ImageJob, PageResponse, ReviewDecision, RiskStatus } from '../types';
+import type { Batch, ImageJob, PageResponse, ReviewDecision, RiskStatus, CsvValidationResult, CostEstimateResponse } from '../types';
 
 const API_BASE = '/api/v1';
 
@@ -119,9 +119,33 @@ export const apiClient = {
     if (!res.ok) throw new Error('Failed to regenerate image metadata');
   },
 
+  async cancelBatch(batchId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/batches/${batchId}/cancel`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to cancel batch');
+  },
+
+  async validateCsv(batchId: string, policy: string): Promise<CsvValidationResult> {
+    const res = await fetch(`${API_BASE}/batches/${batchId}/validate-csv?policy=${policy}`);
+    if (!res.ok) throw new Error('Failed to validate CSV');
+    return res.json();
+  },
+
+  async getCostEstimate(batchId: string): Promise<CostEstimateResponse> {
+    const res = await fetch(`${API_BASE}/batches/${batchId}/cost-estimate`);
+    if (!res.ok) throw new Error('Failed to fetch cost estimation');
+    return res.json();
+  },
+
   async updateImageMetadata(
     imageId: string,
-    data: { title: string; description: string; keywords: string[] }
+    data: {
+      title: string;
+      description: string;
+      keywords: string[];
+      category?: number;
+      releases?: string;
+      isAiGenerated?: boolean;
+    }
   ): Promise<ImageJob> {
     const res = await fetch(`${API_BASE}/images/${imageId}/metadata`, {
       method: 'PATCH',
@@ -151,5 +175,9 @@ export const apiClient = {
 
   getExportUrl(batchId: string, policy: string, format: string): string {
     return `${API_BASE}/batches/${batchId}/export.csv?policy=${policy}&format=${format}`;
+  },
+
+  getZipExportUrl(batchId: string, policy: string, format = 'ADOBE_STOCK'): string {
+    return `${API_BASE}/batches/${batchId}/download.zip?policy=${policy}&format=${format}`;
   },
 };

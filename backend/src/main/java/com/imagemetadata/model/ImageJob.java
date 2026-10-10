@@ -73,6 +73,29 @@ public class ImageJob {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "category")
+    private Integer category;
+
+    @Column(name = "category_name", length = 100)
+    private String categoryName;
+
+    @Column(name = "releases", length = 500)
+    private String releases;
+
+    @Column(name = "is_ai_generated", nullable = false)
+    @Builder.Default
+    private boolean isAiGenerated = false;
+
+    @Column(name = "image_width")
+    private Integer imageWidth;
+
+    @Column(name = "image_height")
+    private Integer imageHeight;
+
+    @Column(name = "compliance_status", length = 50)
+    @Builder.Default
+    private String complianceStatus = "PASS";
+
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "image_job_id")
     @OrderBy("position ASC")

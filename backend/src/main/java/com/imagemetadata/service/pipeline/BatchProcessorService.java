@@ -28,6 +28,7 @@ public class BatchProcessorService {
     private ThreadPoolExecutor executor;
     private final Set<UUID> activeBatchIds = ConcurrentHashMap.newKeySet();
     private final Set<UUID> pausedBatchIds = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> cancelledBatchIds = ConcurrentHashMap.newKeySet();
 
     public BatchProcessorService(
             ProcessingBatchRepository batchRepository,
@@ -108,6 +109,7 @@ public class BatchProcessorService {
         }
 
         pausedBatchIds.remove(batchId);
+        cancelledBatchIds.remove(batchId);
         activeBatchIds.add(batchId);
 
         batch.setStatus(BatchStatus.PROCESSING);
@@ -131,6 +133,22 @@ public class BatchProcessorService {
         log.info("Batch {} has been paused", batchId);
     }
 
+    public void cancelBatch(UUID batchId) {
+        cancelledBatchIds.add(batchId);
+        pausedBatchIds.remove(batchId);
+        activeBatchIds.remove(batchId);
+
+        ProcessingBatch batch = batchRepository.findById(batchId).orElse(null);
+        if (batch != null) {
+            batch.setStatus(BatchStatus.CANCELLED);
+            batch.setCompletedAt(Instant.now());
+            batchRepository.save(batch);
+
+            updateBatchProgressAndEmit(batchId, null);
+        }
+        log.info("Batch {} has been cancelled", batchId);
+    }
+
     public void resumeBatch(UUID batchId) {
         startBatch(batchId);
     }
@@ -143,13 +161,13 @@ public class BatchProcessorService {
 
                 List<CompletableFuture<Void>> futures = new ArrayList<>();
                 for (ImageJob job : pendingJobs) {
-                    if (pausedBatchIds.contains(batchId)) {
-                        log.info("Batch {} paused, stopping further dispatch", batchId);
+                    if (pausedBatchIds.contains(batchId) || cancelledBatchIds.contains(batchId)) {
+                        log.info("Batch {} paused or cancelled, stopping further dispatch", batchId);
                         break;
                     }
 
                     CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                        if (pausedBatchIds.contains(batchId)) {
+                        if (pausedBatchIds.contains(batchId) || cancelledBatchIds.contains(batchId)) {
                             return;
                         }
                         try {

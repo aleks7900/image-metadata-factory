@@ -1,5 +1,7 @@
-C:\Users\aleks\.gemini\antigravity-ide\scratch\image-metadata-factory\backend\src\test\java\com\imagemetadata\BatchControllerIntegrationTest.java
-C:\Users\aleks\.gemini\antigravity-ide\scratch\image-metadata-factory\backend\src\test\java\com\imagemetadata\CsvExportServiceTest.java
-C:\Users\aleks\.gemini\antigravity-ide\scratch\image-metadata-factory\backend\src\test\java\com\imagemetadata\DeterministicSafetyValidatorTest.java
-C:\Users\aleks\.gemini\antigravity-ide\scratch\image-metadata-factory\backend\src\test\java\com\imagemetadata\MetadataQualityValidatorTest.java
-C:\Users\aleks\.gemini\antigravity-ide\scratch\image-metadata-factory\backend\src\test\java\com\imagemetadata\RegressionBugFixesIntegrationTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\AdobeStockBatchIntegrationTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\BatchControllerIntegrationTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\CsvExportServiceTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\DeterministicSafetyValidatorTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\LargeBatchReliabilityTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\MetadataQualityValidatorTest.java
+E:\Projects\image-metadata-factory\backend\src\test\java\com\imagemetadata\RegressionBugFixesIntegrationTest.java

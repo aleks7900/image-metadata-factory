@@ -34,6 +34,9 @@ public class ImageAnalysisResult {
     private List<SafetyFindingDto> safetyFindings = new ArrayList<>();
 
     private boolean modelReleaseMayBeRequired;
+    private Integer category;
+    private String categoryName;
+    private boolean isAiGenerated;
     private String provider;
     private String model;
     private String promptVersion;

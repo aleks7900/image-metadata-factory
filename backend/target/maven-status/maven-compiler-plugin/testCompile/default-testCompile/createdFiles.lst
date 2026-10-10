@@ -1,4 +1,7 @@
 com\imagemetadata\CsvExportServiceTest.class
 com\imagemetadata\BatchControllerIntegrationTest.class
+com\imagemetadata\LargeBatchReliabilityTest.class
 com\imagemetadata\DeterministicSafetyValidatorTest.class
 com\imagemetadata\MetadataQualityValidatorTest.class
+com\imagemetadata\RegressionBugFixesIntegrationTest.class
+com\imagemetadata\AdobeStockBatchIntegrationTest.class
