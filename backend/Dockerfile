@@ -7,7 +7,7 @@ WORKDIR /build
 # Copy maven wrapper and pom.xml
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
-RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw && ./mvnw dependency:go-offline -B
 
 # Copy source code and build executable jar
 COPY src/ src/

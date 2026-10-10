@@ -36,7 +36,7 @@ services:
       MAX_RETRIES: ${MAX_RETRIES:-3}
       STORAGE_DIR: /app/storage/images
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT:-8081}:8080"
     volumes:
       - image_storage:/app/storage/images
     depends_on:
